@@ -1,5 +1,10 @@
 [profile.default]
   evm_version = "prague"
+  ignored_warnings_from = [
+    "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol",
+    "lib/openzeppelin-contracts/contracts/utils/structs/DoubleEndedQueue.sol",
+    "lib/openzeppelin-contracts/contracts/utils/structs/Checkpoints.sol",
+  ]
   optimizer = true
   optimizer_runs = 10_000_000
   solc_version = "0.8.35"
