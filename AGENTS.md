@@ -200,6 +200,15 @@ CI enforces. Mainnet fork tests will need an `ETH_RPC_URL` (e.g. via `--fork-url
 - **Tests:** structured for `scopelint spec` (test contracts/functions named after the unit under
   test). None exist yet — the Governor's behavior and the migration both need coverage, including
   mainnet fork tests.
+- **Keep docs current.** `README.md` is intentionally lightweight and reflects the project's
+  in-progress status. As scripts, tests, and contracts mature, update the README in the **same change**
+  that introduces them — document a script's usage when the script lands, and drop the "under
+  development" flags as those sections become real. Treat README updates as part of the work, not a
+  follow-up.
+- **Licensing:** the project is licensed **AGPL-3.0** (`LICENSE`), matching the Governor's SPDX
+  header. Vendored or adapted third-party files keep their original license and SPDX identifier (e.g.
+  the MIT extensions in `src/extensions/`, BSD-3-Clause for `IComp`). Preserve each file's SPDX
+  identifier; don't relicense vendored code.
 
 ## Current status
 
