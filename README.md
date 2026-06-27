@@ -37,14 +37,42 @@ scopelint check   # verify formatting and conventions (also run in CI)
 - `AGENTS.md` — project context, architecture, and conventions for contributors and coding agents.
 - `foundry.toml` — Foundry build profiles and formatting configuration.
 
-Deployment and governance-proposal scripts (`script/`) and the test suite (`test/`) are still being
-built.
+- `script/` — deployment scripts (see [Scripts](#scripts)). The Governor deploy script is in place;
+  governance-proposal and Franchiser scripts are still being built.
+
+The test suite (`test/`) is still being built.
 
 ## Scripts
 
-> 🚧 **Under development.** The deployment and governance-proposal scripts — Governor adoption,
-> Franchiser deployment, and Franchiser delegation — are not yet available. Usage instructions will
-> be documented here as they land.
+### Deploy the upgraded Governor
+
+`script/DeployGitcoinGovernorWithGuardian.s.sol` holds the reusable deployment mechanics, and
+`script/DeployGitcoinGovernorWithGuardianMainnet.s.sol` supplies the mainnet configuration: the GTC
+token and Compound Timelock addresses (fixed since 2021), plus governance parameters that mirror the
+active "GTC Governor Bravo" so the upgrade preserves current behavior. The new late-quorum vote
+extension and the Governor name carry `TODO`s to confirm with stakeholders before deploying.
+
+Dry-run first to simulate the deployment and print the transaction it would send, and review that
+before broadcasting:
+
+```sh
+forge script script/DeployGitcoinGovernorWithGuardianMainnet.s.sol:DeployGitcoinGovernorWithGuardianMainnet \
+  --rpc-url "$ETH_RPC_URL"
+```
+
+Then broadcast and verify (using an encrypted keystore account set up with `cast wallet import`):
+
+```sh
+forge script script/DeployGitcoinGovernorWithGuardianMainnet.s.sol:DeployGitcoinGovernorWithGuardianMainnet \
+  --rpc-url "$ETH_RPC_URL" \
+  --account deployer \
+  --broadcast \
+  --verify
+```
+
+> 🚧 **Still under development.** The governance-proposal scripts — Governor adoption, Franchiser
+> deployment, and Franchiser delegation — are not yet available. Usage instructions will be
+> documented here as they land.
 
 ## License
 
