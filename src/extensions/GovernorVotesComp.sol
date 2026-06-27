@@ -10,7 +10,19 @@ import {IComp} from "src/interfaces/IComp.sol";
 /// @notice Modified GovernorVotes contract that supports legacy COMP-style tokens.
 abstract contract GovernorVotesComp is Governor {
   /// @notice The legacy IComp token from which voting weight is sourced.
-  IComp public token;
+  IComp private immutable TOKEN;
+
+  /// @param _token The address of the COMP-style legacy governance token used to source voting
+  /// weight.
+  constructor(address _token) {
+    TOKEN = IComp(_token);
+  }
+
+  /// @notice Returns the legacy IComp token from which voting weight is sourced.
+  /// @return The IComp token used to source voting weight.
+  function token() public view virtual returns (IComp) {
+    return TOKEN;
+  }
 
   /// @notice This function implements the clock interface as specified in ERC-6372.
   /// @dev Returns the current clock value used for governance voting.
@@ -46,6 +58,6 @@ abstract contract GovernorVotesComp is Governor {
     override
     returns (uint256)
   {
-    return token.getPriorVotes(_account, _timepoint);
+    return TOKEN.getPriorVotes(_account, _timepoint);
   }
 }
