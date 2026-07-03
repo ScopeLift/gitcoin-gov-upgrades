@@ -212,10 +212,14 @@ CI enforces. Mainnet fork tests will need an `ETH_RPC_URL` (e.g. via `--fork-url
 
 ## Current status
 
-- `GitcoinGovernorWithGuardian` and its two custom extensions are written (one commit in).
-- **No tests, deploy scripts, or proposal scripts yet.** No Franchiser code yet.
-- Up next: deploy scripts, proposal scripts, and the mainnet-fork test suite (see
-  [Deliverables](#deliverables) and [Testing strategy](#testing-strategy)).
+- `GitcoinGovernorWithGuardian` and its two custom extensions are written.
+- The Governor **deploy script** (`DeployGitcoinGovernorWithGuardian[Mainnet].s.sol`) and the
+  **upgrade proposal script** (`ProposeGovernorUpgrade[Mainnet].s.sol`) are in place. Both carry
+  `TODO`s to confirm with stakeholders before running (Governor name, vote extension, proposal
+  guardian; new Governor address, proposer, proposal text).
+- **No tests yet.** No Franchiser code yet.
+- Up next: the mainnet-fork test suite (see [Deliverables](#deliverables) and
+  [Testing strategy](#testing-strategy)), then the Franchiser workstream.
 - CI runs `forge build`, `forge test`, and `scopelint check`. Coverage and Slither jobs are scaffolded
   but commented out in `.github/workflows/ci.yml`.
 
