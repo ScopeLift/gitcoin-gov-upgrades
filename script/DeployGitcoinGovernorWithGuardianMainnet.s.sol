@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.35;
 
-// `run()` is inherited from the abstract base; scopelint's per-file `script` rule does not resolve
-// the inherited entrypoint, so this concrete config opts out of that check.
-// scopelint: ignore-script-file
-
 import {ICompoundTimelock} from "@openzeppelin/contracts/vendor/compound/ICompoundTimelock.sol";
 import {DeployGitcoinGovernorWithGuardian} from "script/DeployGitcoinGovernorWithGuardian.s.sol";
 import {IComp} from "src/interfaces/IComp.sol";
@@ -42,6 +38,12 @@ contract DeployGitcoinGovernorWithGuardianMainnet is DeployGitcoinGovernorWithGu
   // rather than with no one (an unset guardian would let every proposer cancel their own proposals
   // at any lifecycle stage).
   address constant INITIAL_PROPOSAL_GUARDIAN = 0x57a8865cfB1eCEf7253c27da6B4BC3dAEE5Be518;
+
+  // Boilerplate override so this file declares the public `run()` that scopelint's script rule
+  // looks for; the mechanics all live in the base.
+  function run() public override {
+    super.run();
+  }
 
   function _getDeploymentParams() internal pure override returns (DeploymentParams memory) {
     return DeploymentParams({

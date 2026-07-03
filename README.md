@@ -37,8 +37,8 @@ scopelint check   # verify formatting and conventions (also run in CI)
 - `AGENTS.md` — project context, architecture, and conventions for contributors and coding agents.
 - `foundry.toml` — Foundry build profiles and formatting configuration.
 
-- `script/` — deployment scripts (see [Scripts](#scripts)). The Governor deploy script is in place;
-  governance-proposal and Franchiser scripts are still being built.
+- `script/` — deployment and governance-proposal scripts (see [Scripts](#scripts)). The Governor
+  deploy and upgrade-proposal scripts are in place; Franchiser scripts are still being built.
 
 The test suite (`test/`) is still being built.
 
@@ -71,9 +71,39 @@ forge script script/DeployGitcoinGovernorWithGuardianMainnet.s.sol:DeployGitcoin
   --verify
 ```
 
-> 🚧 **Still under development.** The governance-proposal scripts — Governor adoption, Franchiser
-> deployment, and Franchiser delegation — are not yet available. Usage instructions will be
-> documented here as they land.
+### Propose the Governor upgrade
+
+`script/ProposeGovernorUpgrade.s.sol` holds the reusable proposal mechanics, and
+`script/ProposeGovernorUpgradeMainnet.s.sol` supplies the mainnet configuration. Run by a delegate,
+it submits a two-action proposal to the currently active Governor: the Timelock names the new
+Governor as its pending admin (`setPendingAdmin`), and the new Governor claims the role
+(`__acceptAdmin`). Before broadcasting, the script validates that both Governors are wired to the
+same Timelock, that the old Governor is the Timelock's current admin, and that the proposer's
+voting weight meets the proposal threshold.
+
+The new Governor's address, the proposer, and the final proposal text carry `TODO`s. The script
+reverts until the first two are set — the proposal cannot be submitted before the new Governor is
+deployed and a proposer is confirmed.
+
+Dry-run first to simulate the proposal and review the transaction it would send:
+
+```sh
+forge script script/ProposeGovernorUpgradeMainnet.s.sol:ProposeGovernorUpgradeMainnet \
+  --rpc-url "$ETH_RPC_URL"
+```
+
+Then broadcast as the proposer (using an encrypted keystore account set up with
+`cast wallet import`):
+
+```sh
+forge script script/ProposeGovernorUpgradeMainnet.s.sol:ProposeGovernorUpgradeMainnet \
+  --rpc-url "$ETH_RPC_URL" \
+  --account proposer \
+  --broadcast
+```
+
+> 🚧 **Still under development.** The Franchiser scripts — deployment and delegation — are not yet
+> available. Usage instructions will be documented here as they land.
 
 ## License
 
