@@ -20,6 +20,7 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
     uint256 initialProposalThreshold;
     IComp token;
     ICompoundTimelock timelock;
+    address initialProposalGuardian;
   }
 
   GitcoinGovernorWithGuardian public governor;
@@ -40,6 +41,9 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
     );
     _log(string.concat("  token:                    ", vm.toString(address(_params.token))));
     _log(string.concat("  timelock:                 ", vm.toString(address(_params.timelock))));
+    _log(
+      string.concat("  initialProposalGuardian:  ", vm.toString(_params.initialProposalGuardian))
+    );
 
     vm.startBroadcast();
     // BROADCAST: deploy the GitcoinGovernorWithGuardian
@@ -52,7 +56,8 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
       _params.initialVotingPeriod,
       _params.initialProposalThreshold,
       address(_params.token),
-      _params.timelock
+      _params.timelock,
+      _params.initialProposalGuardian
     );
     vm.stopBroadcast();
 
@@ -86,6 +91,13 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
         "set it to the address of Gitcoin's Compound Timelock"
       );
     }
+    if (_params.initialProposalGuardian == address(0)) {
+      revert(
+        "DeployGitcoinGovernorWithGuardian: initialProposalGuardian is the zero address; "
+        "deploying without a guardian would let every proposer cancel their own proposals at "
+        "any lifecycle stage, so set it to the address that should hold cancel authority"
+      );
+    }
   }
 
   function _revertIfDeploymentIsInvalid(DeploymentParams memory _params) internal view {
@@ -106,6 +118,16 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
           vm.toString(governor.timelock()),
           " but expected ",
           vm.toString(address(_params.timelock))
+        )
+      );
+    }
+    if (governor.proposalGuardian() != _params.initialProposalGuardian) {
+      revert(
+        string.concat(
+          "DeployGitcoinGovernorWithGuardian: deployed governor proposal guardian is ",
+          vm.toString(governor.proposalGuardian()),
+          " but expected ",
+          vm.toString(_params.initialProposalGuardian)
         )
       );
     }
