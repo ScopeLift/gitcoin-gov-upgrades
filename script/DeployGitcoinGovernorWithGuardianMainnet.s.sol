@@ -36,6 +36,13 @@ contract DeployGitcoinGovernorWithGuardianMainnet is DeployGitcoinGovernorWithGu
   // voting period ending.
   uint48 constant INITIAL_VOTE_EXTENSION = 14_400;
 
+  // TODO: Confirm the proposal guardian address with Gitcoin stakeholders before deploying —
+  // presumably the DAO's security-council multisig. Defaulted here to the Timelock, i.e. the DAO
+  // itself, so that until a dedicated guardian is chosen, cancel authority rests with governance
+  // rather than with no one (an unset guardian would let every proposer cancel their own proposals
+  // at any lifecycle stage).
+  address constant INITIAL_PROPOSAL_GUARDIAN = 0x57a8865cfB1eCEf7253c27da6B4BC3dAEE5Be518;
+
   function _getDeploymentParams() internal pure override returns (DeploymentParams memory) {
     return DeploymentParams({
       name: GOVERNOR_NAME,
@@ -45,7 +52,8 @@ contract DeployGitcoinGovernorWithGuardianMainnet is DeployGitcoinGovernorWithGu
       initialVotingPeriod: INITIAL_VOTING_PERIOD,
       initialProposalThreshold: INITIAL_PROPOSAL_THRESHOLD,
       token: GTC_TOKEN,
-      timelock: TIMELOCK
+      timelock: TIMELOCK,
+      initialProposalGuardian: INITIAL_PROPOSAL_GUARDIAN
     });
   }
 }

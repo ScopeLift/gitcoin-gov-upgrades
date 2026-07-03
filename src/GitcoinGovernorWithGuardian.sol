@@ -58,6 +58,10 @@ contract GitcoinGovernorWithGuardian is
   /// @param _token The address of the COMP-style legacy governance token used to source voting
   /// weight.
   /// @param _timelockAddress The address of Gitcoin's Timelock address.
+  /// @param _initialProposalGuardian The deployment value for the proposal guardian, the address
+  /// empowered to cancel proposals at any point in their lifecycle before execution. Set at
+  /// deployment so the Governor is never live without a guardian; the DAO can replace it later via
+  /// a governance proposal calling `setProposalGuardian`.
   constructor(
     string memory _name,
     uint256 _initialQuorum,
@@ -66,7 +70,8 @@ contract GitcoinGovernorWithGuardian is
     uint32 _initialVotingPeriod,
     uint256 _initialProposalThreshold,
     address _token,
-    ICompoundTimelock _timelockAddress
+    ICompoundTimelock _timelockAddress,
+    address _initialProposalGuardian
   )
     Governor(_name)
     GovernorSettableFixedQuorum(_initialQuorum)
@@ -74,7 +79,9 @@ contract GitcoinGovernorWithGuardian is
     GovernorSettings(_initialVotingDelay, _initialVotingPeriod, _initialProposalThreshold)
     GovernorVotesComp(_token)
     GovernorTimelockCompound(_timelockAddress)
-  {}
+  {
+    _setProposalGuardian(_initialProposalGuardian);
+  }
 
   /// @inheritdoc GovernorSettings
   /// @dev We override this function to resolve ambiguity between inherited contracts.

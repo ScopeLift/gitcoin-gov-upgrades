@@ -50,7 +50,8 @@ The test suite (`test/`) is still being built.
 `script/DeployGitcoinGovernorWithGuardianMainnet.s.sol` supplies the mainnet configuration: the GTC
 token and Compound Timelock addresses (fixed since 2021), plus governance parameters that mirror the
 active "GTC Governor Bravo" so the upgrade preserves current behavior. The new late-quorum vote
-extension and the Governor name carry `TODO`s to confirm with stakeholders before deploying.
+extension, the initial proposal guardian, and the Governor name carry `TODO`s to confirm with
+stakeholders before deploying.
 
 Dry-run first to simulate the deployment and print the transaction it would send, and review that
 before broadcasting:
