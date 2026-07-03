@@ -186,7 +186,9 @@ Profiles (see `foundry.toml`):
 
 Keep the **default** and **ci** solc settings in sync — they are the production build settings; never
 change solc config for `ci` alone. Use `scopelint`, not bare `forge fmt`; it's a superset and is what
-CI enforces. Mainnet fork tests will need an `ETH_RPC_URL` (e.g. via `--fork-url`).
+CI enforces. The mainnet fork tests read the `mainnet` RPC alias from `foundry.toml`, backed by
+`MAINNET_RPC_URL` in `.env` (copy `.env.template`; the URL embeds an API key and must stay
+secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
 
 ## Conventions
 
@@ -217,9 +219,19 @@ CI enforces. Mainnet fork tests will need an `ETH_RPC_URL` (e.g. via `--fork-url
   **upgrade proposal script** (`ProposeGovernorUpgrade[Mainnet].s.sol`) are in place. Both carry
   `TODO`s to confirm with stakeholders before running (Governor name, vote extension, proposal
   guardian; new Governor address, proposer, proposal text).
-- **No tests yet.** No Franchiser code yet.
-- Up next: the mainnet-fork test suite (see [Deliverables](#deliverables) and
-  [Testing strategy](#testing-strategy)), then the Franchiser workstream.
+- The **mainnet fork integration suite** (`test/*.integration.t.sol`) is in place: it deploys the
+  new Governor with the real deploy script, submits the upgrade proposal with the real proposal
+  script, and exercises the upgrade lifecycle, post-upgrade governance, quorum behavior
+  (settable + late-quorum), and the Proposal Guardian. Shared helpers live in `test/helpers/`;
+  each suite has a `…MainnetScript` provenance concrete, with room for a `…MainnetDeployed`
+  concrete after the real deployment. Proposals are voted through by an electorate of **real
+  delegates** whose live weights are read from the fork in `setUp`. The suite pins `FORK_BLOCK`
+  in `test/helpers/GitcoinGovernorUpgradeTestBase.sol` — when bumping it, re-verify the
+  `PROPOSER` delegate still clears the proposal threshold and the electorate still clears quorum
+  (`setUp` asserts both weights loudly, and quorum-boundary tests assert their own weight
+  preconditions).
+- No Franchiser code yet.
+- Up next: the Franchiser workstream (see [Deliverables](#deliverables)).
 - CI runs `forge build`, `forge test`, and `scopelint check`. Coverage and Slither jobs are scaffolded
   but commented out in `.github/workflows/ci.yml`.
 
