@@ -45,18 +45,12 @@ contract GitcoinGovernorWithGuardian is
   /// @param _name Name of the governor instance (used in building the EIP-712 domain separator).
   /// @param _initialQuorum The deployment value for the proposal quorum value this Governor will
   /// enforce.
-  /// @param _initialVoteExtension The deployment value for the late quorum voting extension
-  /// period. The number of blocks that is required to pass since the moment a proposal reaches
-  /// quorum until its voting period ends. If necessary the voting period will be extended beyond
-  /// the one set during proposal creation.
   /// @param _initialVotingDelay The deployment value for the voting delay this Governor will
   /// enforce.
   /// @param _initialVotingPeriod The deployment value for the voting period this Governor will
   /// enforce.
   /// @param _initialProposalThreshold The deployment value for the number of GTC required to submit
   /// a proposal this Governor will enforce.
-  /// @param _token The address of the COMP-style legacy governance token used to source voting
-  /// weight.
   /// @param _timelockAddress The address of Gitcoin's Timelock address.
   constructor(
     string memory _name,
@@ -65,14 +59,12 @@ contract GitcoinGovernorWithGuardian is
     uint48 _initialVotingDelay,
     uint32 _initialVotingPeriod,
     uint256 _initialProposalThreshold,
-    address _token,
     ICompoundTimelock _timelockAddress
   )
     Governor(_name)
     GovernorSettableFixedQuorum(_initialQuorum)
     GovernorPreventLateQuorum(_initialVoteExtension)
     GovernorSettings(_initialVotingDelay, _initialVotingPeriod, _initialProposalThreshold)
-    GovernorVotesComp(_token)
     GovernorTimelockCompound(_timelockAddress)
   {}
 
