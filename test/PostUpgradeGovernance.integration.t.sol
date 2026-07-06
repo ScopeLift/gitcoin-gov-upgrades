@@ -160,12 +160,17 @@ abstract contract PostUpgradeGovernanceTest is GitcoinGovernorPostUpgradeTestBas
     assertEq(_abstain, _abstainVotes);
 
     // Nominal bravo-style votes from the rest of the electorate coexist with the fractional
-    // tally, and the combined result reaches quorum and passes.
+    // tally.
     _delegatesCastVotesExcept(_proposal.id, FOR, KEV);
     (_against, _for, _abstain) = governor.proposalVotes(_proposal.id);
     assertEq(_for, _forVotes + totalDelegateWeight - _weight);
-    assertGe(_for + _abstain, QUORUM);
-    assertGt(_for, _against);
+    // Ensure the combined result reaches quorum and passes regardless of the fork block.
+    if (((_for + _abstain) < QUORUM) || (_for < _against)) {
+      revert(
+        "Delegate votes at current for vote insufficient to pass proposal in fraction voting tests."
+        "Adjust delegates available or change fork block."
+      );
+    }
 
     _jumpPastProposalDeadline(_proposal.id);
     assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Succeeded);
