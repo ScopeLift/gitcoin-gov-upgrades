@@ -29,6 +29,19 @@ abstract contract GovernorUpgradeProposalTest is GitcoinGovernorUpgradeTestBase 
     assertEq(governor.clock(), block.number);
   }
 
+  function test_GivenProposalRequiresQueuingThroughTheTimelock() external {
+    // The new Governor executes exclusively through the Compound Timelock, so every proposal
+    // reports that it needs queuing. The Governor's proposalNeedsQueuing override exists only to
+    // resolve inheritance ambiguity; this pins the behavior it preserves.
+    ProposalDetails memory _proposal =
+      _buildGtcSendProposal(makeAddr("receiver"), 1000e18, "A proposal that must be queued");
+    _submitProposal(_proposal);
+    assertTrue(governor.proposalNeedsQueuing(_proposal.id));
+
+    // The answer is structural rather than per-proposal: it holds even for ids no proposal has.
+    assertTrue(governor.proposalNeedsQueuing(type(uint256).max));
+  }
+
   function test_SubmitsTheUpgradeProposalWithTheExpectedActions() external {
     _submitUpgradeProposal();
 
