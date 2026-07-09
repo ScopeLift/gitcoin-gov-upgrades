@@ -38,11 +38,16 @@ scopelint check   # verify formatting and conventions (also run in CI)
 - `src/extensions/` — custom Governor extensions: `GovernorVotesComp` (sources votes from the
   COMP-style GTC token) and `GovernorSettableFixedQuorum` (a fixed quorum the DAO can update).
 - `src/interfaces/` — supporting interfaces (e.g. `IComp`).
+- `lib/franchiser-expiry` — the Franchiser contracts, consumed as a git submodule of
+  [ScopeLift's fork](https://github.com/ScopeLift/franchiser-expiry) of the Uniswap Foundation's
+  [franchiser-expiry](https://github.com/uniswapfoundation/franchiser-expiry). The fork updates
+  the build toolchain to match this repo (OpenZeppelin v5, solc 0.8.35) without changing the
+  contracts' logic.
 - `AGENTS.md` — project context, architecture, and conventions for contributors and coding agents.
 - `foundry.toml` — Foundry build profiles and formatting configuration.
 
-- `script/` — deployment and governance-proposal scripts (see [Scripts](#scripts)). The Governor
-  deploy and upgrade-proposal scripts are in place; Franchiser scripts are still being built.
+- `script/` — deployment and governance-proposal scripts (see [Scripts](#scripts)) for both the
+  Governor upgrade and the Franchiser system.
 - `test/` — mainnet fork integration tests simulating the full upgrade and exercising the upgraded
   Governor (see [Testing](#testing)).
 
@@ -106,8 +111,101 @@ forge script script/ProposeGovernorUpgradeMainnet.s.sol:ProposeGovernorUpgradeMa
   --broadcast
 ```
 
-> 🚧 **Still under development.** The Franchiser scripts — deployment and delegation — are not yet
-> available. Usage instructions will be documented here as they land.
+### Deploy the Franchiser system
+
+`script/DeployFranchiser.s.sol` holds the reusable deployment mechanics, and
+`script/DeployFranchiserMainnet.s.sol` supplies the mainnet configuration — just the GTC token,
+since the Franchiser contracts have no owner, admin, or other parameters. The script deploys the
+`FranchiserExpiryFactory` (whose constructor also deploys the canonical `Franchiser` implementation
+that every delegation is cloned from) and the read-only `FranchiserLens` for inspecting delegations.
+
+Dry-run first and review the two transactions it would send:
+
+```sh
+forge script script/DeployFranchiserMainnet.s.sol:DeployFranchiserMainnet \
+  --rpc-url "$MAINNET_RPC_URL"
+```
+
+Then broadcast and verify (using an encrypted keystore account set up with `cast wallet import`):
+
+```sh
+forge script script/DeployFranchiserMainnet.s.sol:DeployFranchiserMainnet \
+  --rpc-url "$MAINNET_RPC_URL" \
+  --account deployer \
+  --broadcast \
+  --verify
+```
+
+### Propose Franchiser delegations
+
+`script/ProposeFranchiserDelegation.s.sol` holds the reusable proposal mechanics, and
+`script/ProposeFranchiserDelegationMainnet.s.sol` supplies the configuration for a delegation
+round. Run by a delegate, it submits a two-action proposal to the Governor: the Timelock approves
+the factory for the round's total amount, and the factory pulls the tokens into one Franchiser per
+delegatee (`fundMany`), delegating each balance to its delegatee until the round's expiration.
+
+Unlike the one-time upgrade proposal, this script is reused: each round edits the delegatees,
+amounts, expiration, and proposal text in the mainnet configuration, and commits the edit so the
+repository keeps a history of every round. Funding a delegatee who already has a live position
+tops it up and overwrites the position's expiration — a zero amount adjusts the expiration alone.
+
+Before broadcasting, the script validates the round: the factory and Governor share the same
+token, the Timelock holds the total being delegated, the proposer clears the proposal threshold,
+no delegatee is duplicated or the zero address, and the expiration outlives the full proposal
+pipeline (voting delay and period, Timelock delay, and grace period), since funding reverts if the
+expiration has passed by execution.
+
+```sh
+# Dry-run, then broadcast as the proposer:
+forge script script/ProposeFranchiserDelegationMainnet.s.sol:ProposeFranchiserDelegationMainnet \
+  --rpc-url "$MAINNET_RPC_URL"
+
+forge script script/ProposeFranchiserDelegationMainnet.s.sol:ProposeFranchiserDelegationMainnet \
+  --rpc-url "$MAINNET_RPC_URL" \
+  --account proposer \
+  --broadcast
+```
+
+### Propose Franchiser recalls
+
+`script/ProposeFranchiserRecall.s.sol` and `script/ProposeFranchiserRecallMainnet.s.sol` unwind
+delegations **before** they expire — the DAO's lever if a delegatee goes inactive or rogue. The
+proposal carries one action, `factory.recallMany`, returning each position's tokens (including any
+the delegatee sub-delegated) to a recipient, ordinarily the Timelock. Like the delegation script,
+each recall edits and commits the mainnet configuration, and the script validates the positions
+exist before proposing. Expired positions don't need a proposal — see the next section.
+
+```sh
+# Dry-run, then broadcast as the proposer:
+forge script script/ProposeFranchiserRecallMainnet.s.sol:ProposeFranchiserRecallMainnet \
+  --rpc-url "$MAINNET_RPC_URL"
+
+forge script script/ProposeFranchiserRecallMainnet.s.sol:ProposeFranchiserRecallMainnet \
+  --rpc-url "$MAINNET_RPC_URL" \
+  --account proposer \
+  --broadcast
+```
+
+### Recall expired Franchiser positions
+
+`script/RecallExpiredFranchisers.s.sol` and `script/RecallExpiredFranchisersMainnet.s.sol` sweep
+expired positions back to the Timelock with `factory.recallManyExpired`. This is **not** a
+governance action: recalling an expired position is permissionless and the tokens always return
+to the position's owner, so anyone can run it from any funded account. The configured delegatee
+list is a candidate set — the script checks each candidate on-chain and recalls only the positions
+that exist and have expired — so the intended maintenance is to keep every delegatee the DAO has
+ever funded on the list.
+
+```sh
+# Dry-run, then broadcast from any account:
+forge script script/RecallExpiredFranchisersMainnet.s.sol:RecallExpiredFranchisersMainnet \
+  --rpc-url "$MAINNET_RPC_URL"
+
+forge script script/RecallExpiredFranchisersMainnet.s.sol:RecallExpiredFranchisersMainnet \
+  --rpc-url "$MAINNET_RPC_URL" \
+  --account keeper \
+  --broadcast
+```
 
 ## Testing
 
@@ -132,6 +230,9 @@ small concrete contract at the bottom of the file. Today each file has a `…Mai
 that deploys via the real deploy script; once the new Governor is live on mainnet, a
 `…MainnetDeployed` concrete pointing at the deployed address can rerun the same suites as a
 post-deployment acceptance check.
+
+> 🚧 **Still under development.** The Franchiser scripts are not yet covered by the fork suites;
+> Franchiser-focused integration tests that exercise them end-to-end are the next milestone.
 
 ## License
 
