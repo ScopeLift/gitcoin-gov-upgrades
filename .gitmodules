@@ -4,3 +4,7 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/franchiser-expiry"]
+	path = lib/franchiser-expiry
+	url = https://github.com/scopelift/franchiser-expiry
+	branch = repo-updates

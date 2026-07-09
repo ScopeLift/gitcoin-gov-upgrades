@@ -5,6 +5,12 @@
       "rev": "620536fa5277db4e3fd46772d5cbc1ea0696fb43"
     }
   },
+  "lib/franchiser-expiry": {
+    "branch": {
+      "name": "repo-updates",
+      "rev": "06bcec71e3c7deb15a09d52ac8c1323101dfffaa"
+    }
+  },
   "lib/openzeppelin-contracts": {
     "tag": {
       "name": "v5.6.1",
