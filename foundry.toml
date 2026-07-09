@@ -4,6 +4,9 @@
     "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol",
     "lib/openzeppelin-contracts/contracts/utils/structs/DoubleEndedQueue.sol",
     "lib/openzeppelin-contracts/contracts/utils/structs/Checkpoints.sol",
+    "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol",
+    "lib/franchiser-expiry/lib/solmate/src/auth/Owned.sol",
+    "lib/franchiser-expiry/lib/solmate/src/utils/SafeTransferLib.sol",
   ]
   optimizer = true
   optimizer_runs = 10_000_000

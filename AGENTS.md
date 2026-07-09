@@ -83,28 +83,47 @@ removing a module, expect to update this override set.
 ### Franchiser workstream
 
 The Franchiser contracts let a token holder delegate voting power to a delegatee who can in turn
-sub-delegate it. Gitcoin will use the **"Expiry" variant** maintained by the Uniswap Foundation:
-<https://github.com/uniswapfoundation/franchiser-expiry>.
+sub-delegate it. Gitcoin uses the **"Expiry" variant** originally maintained by the Uniswap
+Foundation, consumed as a git submodule at `lib/franchiser-expiry` pinned to the `repo-updates`
+branch of **ScopeLift's fork**: <https://github.com/ScopeLift/franchiser-expiry>. The fork updates
+the upstream toolchain to match this repo — OpenZeppelin pinned to the **same v5.6.1 commit** as
+`lib/openzeppelin-contracts`, solc 0.8.35, `via_ir` off — while leaving the contract logic
+untouched (the only source change is `Address.isContract` → `code.length`, an API OZ v5 removed).
+Remappings resolve the fork's `openzeppelin-contracts/` imports to this repo's OZ copy, and
+`solmate/` to the fork's nested submodule.
 
-**Compatibility (initial research).** The Franchiser interacts with **only the voting token** — it
-delegates and moves tokens, and touches no Governor, Timelock, or other governance contract. At
-runtime it calls only `delegate`, `balanceOf`, `transfer`/`transferFrom`, `allowance`, and `permit`,
-all of which the COMP-style GTC token supports, so GTC is **runtime-compatible**.
+**Compatibility.** The Franchiser interacts with **only the voting token** — it touches no
+Governor, Timelock, or other governance contract. At runtime it calls only `delegate`,
+`balanceOf`, `transfer`/`transferFrom`, `allowance`, and `permit`, each verified present in GTC's
+deployed bytecode. The upstream `IVotingToken` interface (`IERC20 + IERC20Permit + IVotes`)
+declares functions GTC does not have (`getVotes`, `getPastVotes`, `DOMAIN_SEPARATOR`), but nothing
+in the contracts calls them, and the interface is **deliberately left as-is**: Solidity does not
+enforce interfaces at runtime, and keeping it means a zero source diff from the audited upstream
+(the fork carries a ChainSecurity audit; it covered the 0.8.15/`via_ir` build, so the logic-level
+findings carry over but the compiled bytecode differs). The `permitAndFund` entry points go unused
+here — the funder is the Timelock, which cannot produce signatures.
 
-A verbatim import is nonetheless not straightforward, for reasons that are dependency- and
-interface-level rather than behavioral:
+**Operations model.** The factory has no owner or admin; its only parameter is the token. Each
+position is a `Franchiser` clone keyed by `(owner, delegatee)`, where the owner is the Timelock.
+Funding and early recall are Timelock actions, i.e. governance proposals: `approve` + `fundMany`
+to delegate (re-funding a live position tops it up and **overwrites its expiration**; a zero
+amount adjusts the expiration alone), `recallMany` to unwind early. Once a position's expiration
+passes, `recallExpired` is **permissionless** and always returns the tokens to the owner, so
+expired delegations unwind without a proposal. Sub-delegation is the delegatee's own prerogative
+(up to 8 sub-delegatees at the root, halving each nesting level).
 
-- Upstream pins **OpenZeppelin v4.x** and **solmate**, and types the token as OZ's `IVotes`. This
-  repo uses **OZ v5.6.1**, and GTC is a COMP-style token (`getPriorVotes` returning `uint96`) that
-  does not satisfy the `IVotes` interface.
-- The likely path is therefore a **light adaptation**: point the Franchiser at a narrow,
-  COMP/EIP-2612-shaped token interface (this repo already has `src/interfaces/IComp.sol` as a
-  starting point) and reconcile dependencies (e.g. use OZ v5 `SafeERC20` in place of solmate's
-  transfer helpers). No changes to the Franchiser's core delegation logic appear necessary.
+**Scripts** (each an abstract base plus a mainnet concrete, like the Governor's):
 
-The exact integration mechanism — vendoring an adapted copy vs. importing with an adapter, and how
-the DAO administers delegations — is still to be settled; deploy scripts and fork tests follow once
-it is.
+- `DeployFranchiser[Mainnet]` — deploys the `FranchiserExpiryFactory` (its constructor deploys the
+  canonical `Franchiser` implementation) and the read-only `FranchiserLens`.
+- `ProposeFranchiserDelegation[Mainnet]` — a delegation round; **reused** by editing and
+  committing the round's delegatees/amounts/expiration, so git holds the delegation history.
+  Validates wiring, treasury balance, proposer threshold, and that the expiration outlives the
+  proposal pipeline (voting delay + period, Timelock delay, grace period).
+- `ProposeFranchiserRecall[Mainnet]` — early unwind of live positions, recipients ordinarily the
+  Timelock.
+- `RecallExpiredFranchisers[Mainnet]` — permissionless sweep of expired positions; its delegatee
+  list is a candidate set filtered on-chain, so a superset (every delegatee ever funded) is safe.
 
 ## Deliverables
 
@@ -230,8 +249,15 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
   `PROPOSER` delegate still clears the proposal threshold and the electorate still clears quorum
   (`setUp` asserts both weights loudly, and quorum-boundary tests assert their own weight
   preconditions).
-- No Franchiser code yet.
-- Up next: the Franchiser workstream (see [Deliverables](#deliverables)).
+- The Franchiser contracts are in place as the `lib/franchiser-expiry` submodule (ScopeLift fork,
+  `repo-updates` branch), and all four **Franchiser script pairs** are written:
+  `DeployFranchiser[Mainnet]`, `ProposeFranchiserDelegation[Mainnet]`,
+  `ProposeFranchiserRecall[Mainnet]`, and `RecallExpiredFranchisers[Mainnet]`. The deploy script
+  dry-runs clean against a mainnet fork; the proposal and sweep concretes carry `TODO`s (factory
+  and new-Governor addresses, proposer, per-round delegations) and revert until those are set.
+- Up next: Franchiser mainnet fork integration tests that exercise the scripts end-to-end —
+  deploy, delegate through a passed proposal, vote with boosted weights, recall early, and sweep
+  after expiry (see [Testing strategy](#testing-strategy)).
 - CI runs `forge build`, `forge test`, and `scopelint check`. Coverage and Slither jobs are scaffolded
   but commented out in `.github/workflows/ci.yml`.
 
