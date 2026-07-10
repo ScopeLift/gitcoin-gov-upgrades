@@ -225,14 +225,28 @@ which the suites exercise the upgraded Governor in place:
 - `PostUpgradeProposalGuardian` — the Proposal Guardian cancelling proposals at every cancelable
   lifecycle stage, the limits of that power, and the DAO replacing the guardian.
 
+The Franchiser suites run the same full upgrade in `setUp` — matching the production sequence,
+where Franchiser adoption follows the Governor upgrade — then deploy the Franchiser system with
+the real deploy script and drive the operations scripts end-to-end:
+
+- `PostUpgradeFranchiserDeploy` — the deployed factory, `Franchiser` implementation, and lens are
+  wired to GTC and to each other.
+- `PostUpgradeFranchiserDelegation` — delegation rounds passing (and failing) through governance:
+  fresh and already-delegated delegatees, multi-delegatee rounds, top-ups that overwrite a
+  position's expiration, zero-amount expiration adjustments, snapshot timing, and the delegation
+  script's validation rules.
+- `PostUpgradeFranchiserRecall` — early recalls returning tokens and weight to the Timelock,
+  clawing back sub-delegated tokens, the snapshot weight a recall cannot reach, and negative
+  tests that neither delegatees nor third parties can move delegated tokens.
+- `PostUpgradeFranchiserExpiry` — the permissionless sweep returning expired positions, its
+  on-chain candidate filtering, the weight that persists until a sweep actually runs, and the
+  guard protecting live positions.
+
 Each suite is written against an abstract base that leaves *how the system comes into being* to a
 small concrete contract at the bottom of the file. Today each file has a `…MainnetScript` concrete
-that deploys via the real deploy script; once the new Governor is live on mainnet, a
-`…MainnetDeployed` concrete pointing at the deployed address can rerun the same suites as a
-post-deployment acceptance check.
-
-> 🚧 **Still under development.** The Franchiser scripts are not yet covered by the fork suites;
-> Franchiser-focused integration tests that exercise them end-to-end are the next milestone.
+that deploys via the real deploy scripts; once the new Governor and the Franchiser system are live
+on mainnet, `…MainnetDeployed` concretes pointing at the deployed addresses can rerun the same
+suites as a post-deployment acceptance check.
 
 ## License
 

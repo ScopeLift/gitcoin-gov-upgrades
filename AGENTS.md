@@ -255,9 +255,18 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
   `ProposeFranchiserRecall[Mainnet]`, and `RecallExpiredFranchisers[Mainnet]`. The deploy script
   dry-runs clean against a mainnet fork; the proposal and sweep concretes carry `TODO`s (factory
   and new-Governor addresses, proposer, per-round delegations) and revert until those are set.
-- Up next: Franchiser mainnet fork integration tests that exercise the scripts end-to-end —
-  deploy, delegate through a passed proposal, vote with boosted weights, recall early, and sweep
-  after expiry (see [Testing strategy](#testing-strategy)).
+- The **Franchiser fork integration suites** (`test/PostUpgradeFranchiser*.integration.t.sol`)
+  are in place: each runs the full Governor upgrade in `setUp` (the production sequence), deploys
+  the Franchiser system with the real deploy script via a `_fetchOrDeployFranchiser` provenance
+  hook, and drives the operations scripts through constructor-injected test configs in
+  `test/helpers/`. Coverage spans delegation rounds (fresh/existing delegatees, top-ups and
+  expiration overwrites, zero-amount adjustments, defeats), early recalls (including
+  sub-delegation clawback and the in-flight-snapshot property — a recall cannot strip weight from
+  proposals already snapshotted), expiry sweeps (permissionless, candidate filtering, weight
+  persists until swept), and the scripts' validation reverts. Shared helpers live in
+  `test/helpers/FranchiserUpgradeTestBase.sol`.
+- Up next: confirm the outstanding `TODO`s with Gitcoin stakeholders, deploy the new Governor,
+  and run the upgrade proposal (see [Deliverables](#deliverables)).
 - CI runs `forge build`, `forge test`, and `scopelint check`. Coverage and Slither jobs are scaffolded
   but commented out in `.github/workflows/ci.yml`.
 
