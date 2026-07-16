@@ -5,12 +5,12 @@ import {Franchiser} from "franchiser-expiry/src/Franchiser.sol";
 import {FranchiserExpiryFactory} from "franchiser-expiry/src/FranchiserExpiryFactory.sol";
 import {FranchiserLens} from "franchiser-expiry/src/FranchiserLens.sol";
 import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
-import {FranchiserUpgradeTestBase} from "test/helpers/FranchiserUpgradeTestBase.sol";
+import {PostUpgradeFranchiserTestBase} from "test/helpers/PostUpgradeFranchiserTestBase.sol";
 
 // Exercises the Franchiser deployment after the Governor upgrade has executed: the system the
 // deploy script produces is wired to GTC, internally consistent, and coherent with the Governor
 // that will administer it.
-abstract contract PostUpgradeFranchiserDeployTest is FranchiserUpgradeTestBase {
+abstract contract PostUpgradeFranchiserDeployTest is PostUpgradeFranchiserTestBase {
   function test_DeployedFranchiserSystemIsWiredToGtcAndInternallyConsistent() external view {
     // The factory sources the same token the Governor sources voting weight from.
     assertEq(address(factory.votingToken()), address(GTC_TOKEN));

@@ -46,7 +46,7 @@ abstract contract ProposeFranchiserDelegation is Script {
 
   function run() public virtual {
     ProposalParams memory _params = _getProposalParams();
-    _revertIfProposalParamsAreInvalid(_params);
+    _validateProposalParams(_params);
 
     (address[] memory _targets, uint256[] memory _values, bytes[] memory _calldatas) =
       _buildProposalActions(_params);
@@ -135,7 +135,7 @@ abstract contract ProposeFranchiserDelegation is Script {
     }
   }
 
-  function _revertIfProposalParamsAreInvalid(ProposalParams memory _params) internal view {
+  function _validateProposalParams(ProposalParams memory _params) internal view {
     if (address(_params.governor) == address(0)) {
       revert(
         "ProposeFranchiserDelegation: governor is the zero address; "
@@ -252,7 +252,7 @@ abstract contract ProposeFranchiserDelegation is Script {
         )
       );
     }
-    _revertIfExpirationIsTooSoon(_params);
+    _validateExpirationOutlivesPipeline(_params);
   }
 
   // `fund` reverts if the expiration has already passed when the proposal executes, and execution
@@ -260,7 +260,7 @@ abstract contract ProposeFranchiserDelegation is Script {
   // the expiration must outlive the whole pipeline: the voting delay and period (block-denominated
   // and converted at SECONDS_PER_BLOCK), the Timelock delay, and the grace period. This assumes
   // the proposal is queued promptly once it succeeds.
-  function _revertIfExpirationIsTooSoon(ProposalParams memory _params) internal view {
+  function _validateExpirationOutlivesPipeline(ProposalParams memory _params) internal view {
     ICompoundTimelock _timelock = ICompoundTimelock(payable(_params.governor.timelock()));
     uint256 _votingPipelineSeconds =
       SECONDS_PER_BLOCK * (_params.governor.votingDelay() + _params.governor.votingPeriod());

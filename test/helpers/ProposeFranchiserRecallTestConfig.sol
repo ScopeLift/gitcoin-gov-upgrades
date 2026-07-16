@@ -15,7 +15,7 @@ contract ProposeFranchiserRecallTestConfig is ProposeFranchiserRecall {
   FranchiserExpiryFactory internal immutable FACTORY;
   address internal immutable PROPOSER;
   address[] internal delegatees;
-  address[] internal tos;
+  address[] internal tokenRecipients;
   string internal description;
 
   constructor(
@@ -23,14 +23,14 @@ contract ProposeFranchiserRecallTestConfig is ProposeFranchiserRecall {
     FranchiserExpiryFactory _factory,
     address _proposer,
     address[] memory _delegatees,
-    address[] memory _tos,
+    address[] memory _tokenRecipients,
     string memory _description
   ) {
     GOVERNOR = _governor;
     FACTORY = _factory;
     PROPOSER = _proposer;
     delegatees = _delegatees;
-    tos = _tos;
+    tokenRecipients = _tokenRecipients;
     description = _description;
   }
 
@@ -40,7 +40,7 @@ contract ProposeFranchiserRecallTestConfig is ProposeFranchiserRecall {
       factory: FACTORY,
       proposer: PROPOSER,
       delegatees: delegatees,
-      tos: tos,
+      tokenRecipients: tokenRecipients,
       description: description
     });
   }

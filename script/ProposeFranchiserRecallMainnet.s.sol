@@ -39,22 +39,23 @@ contract ProposeFranchiserRecallMainnet is ProposeFranchiserRecall {
 
   function _getProposalParams() internal pure override returns (ProposalParams memory) {
     // TODO: Populate the positions this proposal recalls. Each entry pairs a delegatee whose
-    // position is being unwound with the recipient of the recalled tokens — ordinarily TIMELOCK.
-    // Empty arrays make this script revert until the recall is filled in. For example:
+    // position is being unwound with the recipient of the recalled tokens — ordinarily TIMELOCK;
+    // any other recipient triggers a prominent dry-run warning. Empty arrays make this script
+    // revert until the recall is filled in. For example:
     //
     //   address[] memory _delegatees = new address[](1);
-    //   address[] memory _tos = new address[](1);
+    //   address[] memory _tokenRecipients = new address[](1);
     //   _delegatees[0] = 0x0000000000000000000000000000000000000000;
-    //   _tos[0] = TIMELOCK;
+    //   _tokenRecipients[0] = TIMELOCK;
     address[] memory _delegatees = new address[](0);
-    address[] memory _tos = new address[](0);
+    address[] memory _tokenRecipients = new address[](0);
 
     return ProposalParams({
       governor: GOVERNOR,
       factory: FACTORY,
       proposer: PROPOSER,
       delegatees: _delegatees,
-      tos: _tos,
+      tokenRecipients: _tokenRecipients,
       description: DESCRIPTION
     });
   }

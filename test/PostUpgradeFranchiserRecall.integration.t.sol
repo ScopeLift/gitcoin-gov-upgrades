@@ -6,7 +6,7 @@ import {Franchiser} from "franchiser-expiry/src/Franchiser.sol";
 import {FranchiserExpiryFactory} from "franchiser-expiry/src/FranchiserExpiryFactory.sol";
 import {FranchiserLens} from "franchiser-expiry/src/FranchiserLens.sol";
 import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
-import {FranchiserUpgradeTestBase} from "test/helpers/FranchiserUpgradeTestBase.sol";
+import {PostUpgradeFranchiserTestBase} from "test/helpers/PostUpgradeFranchiserTestBase.sol";
 import {
   ProposeFranchiserRecallTestConfig
 } from "test/helpers/ProposeFranchiserRecallTestConfig.sol";
@@ -14,13 +14,18 @@ import {
 // Exercises early recalls after the Governor upgrade: proposals submitted with the real recall
 // script that unwind live Franchiser positions before they expire, what that does to the
 // delegatee's voting weight, and the limits of who can move the delegated tokens.
-abstract contract PostUpgradeFranchiserRecallTest is FranchiserUpgradeTestBase {
+abstract contract PostUpgradeFranchiserRecallTest is PostUpgradeFranchiserTestBase {
   function test_PassedRecallProposalReturnsDelegatedTokensAndRemovesTheDelegateesWeight() external {
     address _delegatee = makeAddr("recalledDelegatee");
     uint256 _amount = 500_000e18;
     uint256 _initialTimelockBalance = GTC_TOKEN.balanceOf(address(TIMELOCK));
     _delegateViaProposal(_delegatee, _amount, _safeExpiration());
-    assertEq(GTC_TOKEN.getCurrentVotes(_delegatee), _amount);
+    if (GTC_TOKEN.getCurrentVotes(_delegatee) != _amount) {
+      revert(
+        "Test scaffolding: the arranged delegation did not confer the expected weight; the "
+        "recall scenario cannot proceed"
+      );
+    }
 
     // The DAO unwinds the position early through a full governance proposal.
     _recallViaProposal(_delegatee);
@@ -50,8 +55,17 @@ abstract contract PostUpgradeFranchiserRecallTest is FranchiserUpgradeTestBase {
     _submitProposal(_proposal);
 
     _passQueueAndExecuteSubmittedProposal(_recallRound);
-    assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Active);
-    assertEq(GTC_TOKEN.getCurrentVotes(_delegatee), 0);
+    _guardProposalState(
+      governor.state(_proposal.id),
+      IGovernor.ProposalState.Active,
+      "the unrelated proposal must still be in its voting window when the recall executes"
+    );
+    if (GTC_TOKEN.getCurrentVotes(_delegatee) != 0) {
+      revert(
+        "Test scaffolding: the recall executed but the delegatee still holds current weight; "
+        "the arranged recall did not complete"
+      );
+    }
 
     // The recall cannot reach weight already snapshotted: the recalled delegatee still votes
     // with the full delegated weight on the in-flight proposal. The DAO's early-recall lever
@@ -73,9 +87,16 @@ abstract contract PostUpgradeFranchiserRecallTest is FranchiserUpgradeTestBase {
     Franchiser _franchiser = _franchiserFor(_delegatee);
     vm.prank(_delegatee);
     Franchiser _subFranchiser = _franchiser.subDelegate(_subDelegatee, _subDelegatedAmount);
-    assertEq(GTC_TOKEN.getCurrentVotes(_delegatee), _amount - _subDelegatedAmount);
-    assertEq(GTC_TOKEN.getCurrentVotes(_subDelegatee), _subDelegatedAmount);
-    assertEq(GTC_TOKEN.balanceOf(address(_subFranchiser)), _subDelegatedAmount);
+    if (
+      GTC_TOKEN.getCurrentVotes(_delegatee) != _amount - _subDelegatedAmount
+        || GTC_TOKEN.getCurrentVotes(_subDelegatee) != _subDelegatedAmount
+        || GTC_TOKEN.balanceOf(address(_subFranchiser)) != _subDelegatedAmount
+    ) {
+      revert(
+        "Test scaffolding: the arranged sub-delegation did not split the position as expected; "
+        "the claw-back scenario cannot proceed"
+      );
+    }
 
     // The DAO's recall claws back the entire tree, not just the top-level position.
     _recallViaProposal(_delegatee);
@@ -118,6 +139,46 @@ abstract contract PostUpgradeFranchiserRecallTest is FranchiserUpgradeTestBase {
     assertEq(GTC_TOKEN.balanceOf(address(_franchiserFor(_delegatee))), _amount);
     assertEq(GTC_TOKEN.getCurrentVotes(_delegatee), _amount);
     assertEq(GTC_TOKEN.balanceOf(_attacker), 0);
+  }
+
+  function test_RecallRoundToANonTimelockRecipientCountsAnOffTreasuryWarning() external {
+    address _delegatee = makeAddr("redirectedDelegatee");
+    address _offTreasuryRecipient = makeAddr("offTreasuryRecipient");
+    _delegateViaProposal(_delegatee, 500_000e18, _safeExpiration());
+
+    // A recipient other than the Timelock is legal, but the script warns the proposer that the
+    // recalled tokens leave the treasury. Tests silence logging, so the warning is observed
+    // through the script's public counter.
+    ProposeFranchiserRecallTestConfig _proposeScript = new ProposeFranchiserRecallTestConfig(
+      governor,
+      factory,
+      PROPOSER,
+      _asArray(_delegatee),
+      _asArray(_offTreasuryRecipient),
+      RECALL_PROPOSAL_DESCRIPTION
+    );
+    _proposeScript.disableLogging();
+    _proposeScript.run();
+
+    assertEq(_proposeScript.offTreasuryRecipientCount(), 1);
+  }
+
+  function test_RecallRoundToTheTimelockCountsNoOffTreasuryWarning() external {
+    address _delegatee = makeAddr("standardDelegatee");
+    _delegateViaProposal(_delegatee, 500_000e18, _safeExpiration());
+
+    ProposeFranchiserRecallTestConfig _proposeScript = new ProposeFranchiserRecallTestConfig(
+      governor,
+      factory,
+      PROPOSER,
+      _asArray(_delegatee),
+      _asArray(address(TIMELOCK)),
+      RECALL_PROPOSAL_DESCRIPTION
+    );
+    _proposeScript.disableLogging();
+    _proposeScript.run();
+
+    assertEq(_proposeScript.offTreasuryRecipientCount(), 0);
   }
 
   function test_RevertIf_RecallRoundTargetsADelegateeWithNoPosition() external {

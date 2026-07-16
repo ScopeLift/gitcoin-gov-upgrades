@@ -23,7 +23,7 @@ import {
 // the Franchiser system then comes into being through its own provenance hook. Holds proposal
 // mirrors for the operations scripts' actions and step helpers for driving each script and
 // walking its proposal through the new Governor's lifecycle.
-abstract contract FranchiserUpgradeTestBase is GitcoinGovernorPostUpgradeTestBase {
+abstract contract PostUpgradeFranchiserTestBase is GitcoinGovernorPostUpgradeTestBase {
   // Mirrors the delegation script's block-time assumption for converting the Governor's
   // block-denominated voting pipeline into seconds when computing expirations.
   uint256 constant SECONDS_PER_BLOCK = 12;
@@ -88,8 +88,8 @@ abstract contract FranchiserUpgradeTestBase is GitcoinGovernorPostUpgradeTestBas
   //----------------------------------- Proposal mirrors -----------------------------------//
 
   // The two actions of a delegation proposal, mirroring what the delegation script builds. The
-  // submit helpers assert the mirror is faithful by recomputing the script-returned proposal id
-  // from these actions.
+  // submit helpers guard that the mirror is faithful by recomputing the script-returned proposal
+  // id from these actions.
   function _delegationProposalDetails(
     address[] memory _delegatees,
     uint256[] memory _amounts,
@@ -111,7 +111,7 @@ abstract contract FranchiserUpgradeTestBase is GitcoinGovernorPostUpgradeTestBas
   }
 
   // The single action of a recall proposal, mirroring what the recall script builds.
-  function _recallProposalDetails(address[] memory _delegatees, address[] memory _tos)
+  function _recallProposalDetails(address[] memory _delegatees, address[] memory _tokenRecipients)
     internal
     view
     returns (ProposalDetails memory _proposal)
@@ -120,7 +120,7 @@ abstract contract FranchiserUpgradeTestBase is GitcoinGovernorPostUpgradeTestBas
     _proposal.values = new uint256[](1);
     _proposal.calldatas = new bytes[](1);
     _proposal.targets[0] = address(factory);
-    _proposal.calldatas[0] = abi.encodeCall(factory.recallMany, (_delegatees, _tos));
+    _proposal.calldatas[0] = abi.encodeCall(factory.recallMany, (_delegatees, _tokenRecipients));
     _proposal.description = RECALL_PROPOSAL_DESCRIPTION;
     _proposal.id = _hashProposal(_proposal);
   }
@@ -146,22 +146,30 @@ abstract contract FranchiserUpgradeTestBase is GitcoinGovernorPostUpgradeTestBas
     _proposeScript.disableLogging();
     _proposeScript.run();
     _proposal = _delegationProposalDetails(_delegatees, _amounts, _expiration);
-    assertEq(_proposeScript.proposalId(), _proposal.id);
+    _guardProposalId(
+      _proposeScript.proposalId(),
+      _proposal.id,
+      "the delegation script vs the _delegationProposalDetails mirror"
+    );
   }
 
   // Submits a recall round by running the proposal script, exactly as a delegate would, and
   // returns the mirrored proposal details for driving the proposal's lifecycle.
-  function _submitRecallRound(address[] memory _delegatees, address[] memory _tos)
+  function _submitRecallRound(address[] memory _delegatees, address[] memory _tokenRecipients)
     internal
     returns (ProposalDetails memory _proposal)
   {
     ProposeFranchiserRecallTestConfig _proposeScript = new ProposeFranchiserRecallTestConfig(
-      governor, factory, PROPOSER, _delegatees, _tos, RECALL_PROPOSAL_DESCRIPTION
+      governor, factory, PROPOSER, _delegatees, _tokenRecipients, RECALL_PROPOSAL_DESCRIPTION
     );
     _proposeScript.disableLogging();
     _proposeScript.run();
-    _proposal = _recallProposalDetails(_delegatees, _tos);
-    assertEq(_proposeScript.proposalId(), _proposal.id);
+    _proposal = _recallProposalDetails(_delegatees, _tokenRecipients);
+    _guardProposalId(
+      _proposeScript.proposalId(),
+      _proposal.id,
+      "the recall script vs the _recallProposalDetails mirror"
+    );
   }
 
   // Walks a proposal submitted by an operations script through the rest of its lifecycle: the
@@ -170,11 +178,19 @@ abstract contract FranchiserUpgradeTestBase is GitcoinGovernorPostUpgradeTestBas
     _jumpToProposalActive(_proposal.id);
     _delegatesCastVotes(_proposal.id, FOR);
     _jumpPastProposalDeadline(_proposal.id);
-    assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Succeeded);
+    _guardProposalState(
+      governor.state(_proposal.id),
+      IGovernor.ProposalState.Succeeded,
+      "after the electorate voted a script-submitted proposal through"
+    );
     _queueProposal(_proposal);
     _jumpPastProposalEta(_proposal.id);
     _executeProposal(_proposal);
-    assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Executed);
+    _guardProposalState(
+      governor.state(_proposal.id),
+      IGovernor.ProposalState.Executed,
+      "after executing a script-submitted proposal"
+    );
   }
 
   // The full delegation journey: submit the round via the proposal script, pass, queue, execute.

@@ -165,6 +165,84 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     return _deployScript.governor();
   }
 
+  //---------------------------------- Scaffolding guards ----------------------------------//
+  // Guards on the state the step helpers expect as they drive proposals through their
+  // lifecycle. Like the setUp guards, these revert rather than assert: a failure means a test
+  // scaffolding assumption broke — most often a FORK_BLOCK bump reshaping the electorate — not
+  // that a behavior under test regressed. Assertions are reserved for the claims test bodies
+  // make about the system under test.
+
+  function _guardProposalState(
+    IGovernor.ProposalState _actual,
+    IGovernor.ProposalState _expected,
+    string memory _context
+  ) internal pure {
+    if (_actual == _expected) {
+      return;
+    }
+    revert(
+      string.concat(
+        "Test scaffolding expected a proposal to be ",
+        _proposalStateName(_expected),
+        " but it is ",
+        _proposalStateName(_actual),
+        " (",
+        _context,
+        "); a scaffolding assumption broke; check the setUp guards and FORK_BLOCK before "
+        "suspecting the behavior under test"
+      )
+    );
+  }
+
+  function _guardProposalId(uint256 _actualId, uint256 _expectedId, string memory _context)
+    internal
+    pure
+  {
+    if (_actualId == _expectedId) {
+      return;
+    }
+    revert(
+      string.concat(
+        "Test scaffolding expected proposal id ",
+        vm.toString(_expectedId),
+        " but the governor assigned ",
+        vm.toString(_actualId),
+        " (",
+        _context,
+        "); the submitted actions and the test's mirror of them have diverged; realign them"
+      )
+    );
+  }
+
+  function _proposalStateName(IGovernor.ProposalState _state)
+    internal
+    pure
+    returns (string memory)
+  {
+    if (_state == IGovernor.ProposalState.Pending) {
+      return "Pending";
+    }
+    if (_state == IGovernor.ProposalState.Active) {
+      return "Active";
+    }
+    if (_state == IGovernor.ProposalState.Canceled) {
+      return "Canceled";
+    }
+    if (_state == IGovernor.ProposalState.Defeated) {
+      return "Defeated";
+    }
+    if (_state == IGovernor.ProposalState.Succeeded) {
+      return "Succeeded";
+    }
+    if (_state == IGovernor.ProposalState.Queued) {
+      return "Queued";
+    }
+    if (_state == IGovernor.ProposalState.Expired) {
+      return "Expired";
+    }
+    return "Executed";
+  }
+
   //---------------------------------- Electorate helpers ----------------------------------//
 
   // A delegate's voting weight as read from the fork in setUp. Stable for the run: nothing in
@@ -241,11 +319,20 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     _proposeScript.disableLogging();
     _proposeScript.run();
     upgradeProposalId = _proposeScript.proposalId();
+    _guardProposalId(
+      upgradeProposalId,
+      _upgradeProposalDetails().id,
+      "the upgrade proposal script vs the _upgradeProposalDetails mirror"
+    );
   }
 
   function _jumpToUpgradeProposalActive() internal {
     vm.roll(OLD_GOVERNOR.proposalSnapshot(upgradeProposalId) + 1);
-    assertEq(OLD_GOVERNOR.state(upgradeProposalId), IGovernor.ProposalState.Active);
+    _guardProposalState(
+      OLD_GOVERNOR.state(upgradeProposalId),
+      IGovernor.ProposalState.Active,
+      "jumping to the upgrade proposal's voting window"
+    );
   }
 
   function _jumpPastUpgradeProposalDeadline() internal {
@@ -297,7 +384,17 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     _queueUpgradeProposal();
     _jumpPastUpgradeProposalEta();
     _executeUpgradeProposal();
-    assertEq(TIMELOCK.admin(), address(governor));
+    if (TIMELOCK.admin() != address(governor)) {
+      revert(
+        string.concat(
+          "Test scaffolding: the upgrade proposal executed but the Timelock's admin is ",
+          vm.toString(TIMELOCK.admin()),
+          " rather than the new Governor ",
+          vm.toString(address(governor)),
+          "; the upgrade journey the suites build on is broken"
+        )
+      );
+    }
   }
 
   //------------------------- Arbitrary proposals on the old Governor -------------------------//
@@ -307,7 +404,7 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     uint256 _id = OLD_GOVERNOR.propose(
       _proposal.targets, _proposal.values, _proposal.calldatas, _proposal.description
     );
-    assertEq(_id, _proposal.id);
+    _guardProposalId(_id, _proposal.id, "submitting a proposal directly to the old Governor");
   }
 
   function _delegatesCastVotesOnOldGovernor(uint256 _proposalId, uint8 _support) internal {
@@ -322,7 +419,11 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     vm.roll(OLD_GOVERNOR.proposalSnapshot(_proposal.id) + 1);
     _delegatesCastVotesOnOldGovernor(_proposal.id, FOR);
     vm.roll(OLD_GOVERNOR.proposalDeadline(_proposal.id) + 1);
-    assertEq(OLD_GOVERNOR.state(_proposal.id), IGovernor.ProposalState.Succeeded);
+    _guardProposalState(
+      OLD_GOVERNOR.state(_proposal.id),
+      IGovernor.ProposalState.Succeeded,
+      "after the electorate voted a proposal through on the old Governor"
+    );
   }
 
   // Queues a succeeded proposal on the old Governor, waits out the Timelock delay, and executes.
@@ -341,7 +442,11 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
       _proposal.calldatas,
       keccak256(bytes(_proposal.description))
     );
-    assertEq(OLD_GOVERNOR.state(_proposal.id), IGovernor.ProposalState.Executed);
+    _guardProposalState(
+      OLD_GOVERNOR.state(_proposal.id),
+      IGovernor.ProposalState.Executed,
+      "after executing a queued proposal on the old Governor"
+    );
   }
 
   //------------------------------ Proposals on the new Governor ------------------------------//
@@ -351,13 +456,21 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     uint256 _id = governor.propose(
       _proposal.targets, _proposal.values, _proposal.calldatas, _proposal.description
     );
-    assertEq(_id, _proposal.id);
-    assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Pending);
+    _guardProposalId(_id, _proposal.id, "submitting a proposal directly to the new Governor");
+    _guardProposalState(
+      governor.state(_proposal.id),
+      IGovernor.ProposalState.Pending,
+      "immediately after submitting a proposal to the new Governor"
+    );
   }
 
   function _jumpToProposalActive(uint256 _proposalId) internal {
     vm.roll(governor.proposalSnapshot(_proposalId) + 1);
-    assertEq(governor.state(_proposalId), IGovernor.ProposalState.Active);
+    _guardProposalState(
+      governor.state(_proposalId),
+      IGovernor.ProposalState.Active,
+      "jumping to a proposal's voting window on the new Governor"
+    );
   }
 
   function _castVote(address _voter, uint256 _proposalId, uint8 _support) internal {
@@ -416,7 +529,11 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     _jumpToProposalActive(_proposal.id);
     _delegatesCastVotes(_proposal.id, FOR);
     _jumpPastProposalDeadline(_proposal.id);
-    assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Succeeded);
+    _guardProposalState(
+      governor.state(_proposal.id),
+      IGovernor.ProposalState.Succeeded,
+      "after the electorate voted a proposal through on the new Governor"
+    );
   }
 
   function _submitPassQueueAndExecuteProposal(ProposalDetails memory _proposal) internal {
@@ -424,7 +541,11 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     _queueProposal(_proposal);
     _jumpPastProposalEta(_proposal.id);
     _executeProposal(_proposal);
-    assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Executed);
+    _guardProposalState(
+      governor.state(_proposal.id),
+      IGovernor.ProposalState.Executed,
+      "after executing a queued proposal on the new Governor"
+    );
   }
 
   //----------------------------------------- Misc -----------------------------------------//

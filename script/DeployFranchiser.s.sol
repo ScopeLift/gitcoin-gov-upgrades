@@ -23,7 +23,7 @@ abstract contract DeployFranchiser is Script {
 
   function run() public virtual {
     DeploymentParams memory _params = _getDeploymentParams();
-    _revertIfDeploymentParamsAreInvalid(_params);
+    _validateDeploymentParams(_params);
 
     _log("Deploying the Franchiser system with:");
     _log(string.concat("  votingToken: ", vm.toString(address(_params.votingToken))));
@@ -47,7 +47,7 @@ abstract contract DeployFranchiser is Script {
     );
     _log(string.concat("FranchiserLens deployed at ", vm.toString(address(lens))));
 
-    _revertIfDeploymentIsInvalid(_params);
+    _validateDeployment(_params);
   }
 
   function disableLogging() public {
@@ -62,7 +62,7 @@ abstract contract DeployFranchiser is Script {
     }
   }
 
-  function _revertIfDeploymentParamsAreInvalid(DeploymentParams memory _params) internal view {
+  function _validateDeploymentParams(DeploymentParams memory _params) internal view {
     if (address(_params.votingToken) == address(0)) {
       revert(
         "DeployFranchiser: votingToken is the zero address; "
@@ -80,7 +80,7 @@ abstract contract DeployFranchiser is Script {
     }
   }
 
-  function _revertIfDeploymentIsInvalid(DeploymentParams memory _params) internal view {
+  function _validateDeployment(DeploymentParams memory _params) internal view {
     if (address(factory.votingToken()) != address(_params.votingToken)) {
       revert(
         string.concat(

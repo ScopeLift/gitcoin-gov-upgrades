@@ -30,7 +30,7 @@ abstract contract ProposeGovernorUpgrade is Script {
 
   function run() public virtual {
     ProposalParams memory _params = _getProposalParams();
-    _revertIfProposalParamsAreInvalid(_params);
+    _validateProposalParams(_params);
 
     (address[] memory _targets, uint256[] memory _values, bytes[] memory _calldatas) =
       _buildProposalActions(_params);
@@ -80,7 +80,7 @@ abstract contract ProposeGovernorUpgrade is Script {
     }
   }
 
-  function _revertIfProposalParamsAreInvalid(ProposalParams memory _params) internal view {
+  function _validateProposalParams(ProposalParams memory _params) internal view {
     if (address(_params.oldGovernor) == address(0)) {
       revert(
         "ProposeGovernorUpgrade: oldGovernor is the zero address; "
