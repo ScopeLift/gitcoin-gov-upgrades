@@ -121,7 +121,7 @@ expired delegations unwind without a proposal. Sub-delegation is the delegatee's
   Validates wiring, treasury balance, proposer threshold, and that the expiration outlives the
   proposal pipeline (voting delay + period, Timelock delay, grace period).
 - `ProposeFranchiserRecall[Mainnet]` — early unwind of live positions, recipients ordinarily the
-  Timelock.
+  Timelock; a non-Timelock recipient is legal but triggers a prominent dry-run warning.
 - `RecallExpiredFranchisers[Mainnet]` — permissionless sweep of expired positions; its delegatee
   list is a candidate set filtered on-chain, so a superset (every delegatee ever funded) is safe.
 
@@ -219,8 +219,11 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
   for overrides; the override-resolution functions are documented with a short `@dev` explaining they
   disambiguate inherited modules.
 - **Tests:** structured for `scopelint spec` (test contracts/functions named after the unit under
-  test). None exist yet — the Governor's behavior and the migration both need coverage, including
-  mainnet fork tests.
+  test); the mainnet fork suites are described under [Current status](#current-status). `assert*`
+  is reserved for the claims a test makes about the system under test; checks on test assumptions
+  or scaffolding (setUp fork state, helper lifecycle checkpoints, scenario preconditions) instead
+  revert with a developer-aimed message naming the broken assumption, so a failure reads as
+  "repair the test setup," not "a behavior regressed."
 - **Keep docs current.** `README.md` is intentionally lightweight and reflects the project's
   in-progress status. As scripts, tests, and contracts mature, update the README in the **same change**
   that introduces them — document a script's usage when the script lands, and drop the "under
@@ -264,7 +267,7 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
   sub-delegation clawback and the in-flight-snapshot property — a recall cannot strip weight from
   proposals already snapshotted), expiry sweeps (permissionless, candidate filtering, weight
   persists until swept), and the scripts' validation reverts. Shared helpers live in
-  `test/helpers/FranchiserUpgradeTestBase.sol`.
+  `test/helpers/PostUpgradeFranchiserTestBase.sol`.
 - Up next: confirm the outstanding `TODO`s with Gitcoin stakeholders, deploy the new Governor,
   and run the upgrade proposal (see [Deliverables](#deliverables)).
 - CI runs `forge build`, `forge test`, and `scopelint check`. Coverage and Slither jobs are scaffolded

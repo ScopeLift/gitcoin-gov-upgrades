@@ -7,7 +7,7 @@ import {FranchiserExpiryFactory} from "franchiser-expiry/src/FranchiserExpiryFac
 import {FranchiserLens} from "franchiser-expiry/src/FranchiserLens.sol";
 import {IFranchiserLens} from "franchiser-expiry/src/interfaces/IFranchiserLens.sol";
 import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
-import {FranchiserUpgradeTestBase} from "test/helpers/FranchiserUpgradeTestBase.sol";
+import {PostUpgradeFranchiserTestBase} from "test/helpers/PostUpgradeFranchiserTestBase.sol";
 import {
   ProposeFranchiserDelegationTestConfig
 } from "test/helpers/ProposeFranchiserDelegationTestConfig.sol";
@@ -15,7 +15,7 @@ import {
 // Exercises delegation rounds after the Governor upgrade: proposals submitted with the real
 // delegation script that move treasury GTC from the Timelock into Franchiser positions, and the
 // voting weight those positions confer on their delegatees.
-abstract contract PostUpgradeFranchiserDelegationTest is FranchiserUpgradeTestBase {
+abstract contract PostUpgradeFranchiserDelegationTest is PostUpgradeFranchiserTestBase {
   function test_PassedDelegationProposalFundsAFreshDelegateeWhoVotesWithTheDelegatedWeight()
     external
   {
@@ -23,7 +23,12 @@ abstract contract PostUpgradeFranchiserDelegationTest is FranchiserUpgradeTestBa
     uint256 _amount = 500_000e18;
     uint256 _expiration = _safeExpiration();
     uint256 _initialTimelockBalance = GTC_TOKEN.balanceOf(address(TIMELOCK));
-    assertEq(GTC_TOKEN.getCurrentVotes(_delegatee), 0);
+    if (GTC_TOKEN.getCurrentVotes(_delegatee) != 0) {
+      revert(
+        "Test scaffolding: the fresh delegatee already has voting weight; the fresh-funding "
+        "scenario needs a delegatee with none"
+      );
+    }
 
     // The DAO delegates treasury GTC to the fresh delegatee through a full governance proposal.
     _delegateViaProposal(_delegatee, _amount, _expiration);
@@ -77,7 +82,12 @@ abstract contract PostUpgradeFranchiserDelegationTest is FranchiserUpgradeTestBa
     // lefteris.eth already holds real delegated weight at the fork block; a Franchiser
     // delegation stacks on top of it.
     uint256 _initialWeight = GTC_TOKEN.getCurrentVotes(LEFTERIS);
-    assertGt(_initialWeight, 0);
+    if (_initialWeight == 0) {
+      revert(
+        "Test scaffolding: lefteris.eth has no delegated weight at FORK_BLOCK; pick a delegate "
+        "with existing weight for the stacking scenario"
+      );
+    }
     uint256 _amount = 250_000e18;
 
     _delegateViaProposal(LEFTERIS, _amount, _safeExpiration());
@@ -139,7 +149,12 @@ abstract contract PostUpgradeFranchiserDelegationTest is FranchiserUpgradeTestBa
     // overwrites a live position's expiration in either direction.
     uint256 _secondAmount = 200_000e18;
     uint256 _secondExpiration = _safeExpiration();
-    assertLt(_secondExpiration, _firstExpiration);
+    if (_secondExpiration >= _firstExpiration) {
+      revert(
+        "Test scaffolding: the second round's expiration no longer lands before the first's; "
+        "the 90-day buffer no longer outruns the proposal pipeline, so widen it"
+      );
+    }
     _delegateViaProposal(_delegatee, _secondAmount, _secondExpiration);
 
     // The same clone is reused, the balances add, and the new (earlier) expiration governs.
@@ -183,7 +198,12 @@ abstract contract PostUpgradeFranchiserDelegationTest is FranchiserUpgradeTestBa
     _submitProposal(_proposal);
 
     _passQueueAndExecuteSubmittedProposal(_round);
-    assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Active);
+    _guardProposalState(
+      governor.state(_proposal.id),
+      IGovernor.ProposalState.Active,
+      "the unrelated proposal must still be in its voting window when the delegation round "
+      "executes"
+    );
 
     // The delegatee has the weight now, but had none at the proposal's snapshot...
     assertEq(GTC_TOKEN.getCurrentVotes(_delegatee), _amount);

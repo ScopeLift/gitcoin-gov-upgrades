@@ -28,7 +28,7 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
 
   function run() public virtual {
     DeploymentParams memory _params = _getDeploymentParams();
-    _revertIfDeploymentParamsAreInvalid(_params);
+    _validateDeploymentParams(_params);
 
     _log("Deploying GitcoinGovernorWithGuardian with:");
     _log(string.concat("  name:                     ", _params.name));
@@ -63,7 +63,7 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
 
     _log(string.concat("GitcoinGovernorWithGuardian deployed at ", vm.toString(address(governor))));
 
-    _revertIfDeploymentIsInvalid(_params);
+    _validateDeployment(_params);
   }
 
   function disableLogging() public {
@@ -78,7 +78,7 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
     }
   }
 
-  function _revertIfDeploymentParamsAreInvalid(DeploymentParams memory _params) internal pure {
+  function _validateDeploymentParams(DeploymentParams memory _params) internal pure {
     if (address(_params.token) == address(0)) {
       revert(
         "DeployGitcoinGovernorWithGuardian: token is the zero address; "
@@ -100,7 +100,7 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
     }
   }
 
-  function _revertIfDeploymentIsInvalid(DeploymentParams memory _params) internal view {
+  function _validateDeployment(DeploymentParams memory _params) internal view {
     if (address(governor.token()) != address(_params.token)) {
       revert(
         string.concat(

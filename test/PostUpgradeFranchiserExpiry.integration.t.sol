@@ -7,7 +7,7 @@ import {
   IFranchiserExpiryFactoryErrors
 } from "franchiser-expiry/src/interfaces/FranchiserExpiryFactory/IFranchiserExpiryFactoryErrors.sol";
 import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
-import {FranchiserUpgradeTestBase} from "test/helpers/FranchiserUpgradeTestBase.sol";
+import {PostUpgradeFranchiserTestBase} from "test/helpers/PostUpgradeFranchiserTestBase.sol";
 import {
   RecallExpiredFranchisersTestConfig
 } from "test/helpers/RecallExpiredFranchisersTestConfig.sol";
@@ -15,8 +15,8 @@ import {
 // Exercises position expiry after the Governor upgrade: the permissionless sweep script
 // returning lapsed delegations to the Timelock, what expiry does (and does not do) to voting
 // weight, and the guard that keeps live positions out of reach.
-abstract contract PostUpgradeFranchiserExpiryTest is FranchiserUpgradeTestBase {
-  function test_AnyoneSweepsAnExpiredPositionReturningTokensAndRemovingWeight() external {
+abstract contract PostUpgradeFranchiserExpiryTest is PostUpgradeFranchiserTestBase {
+  function test_SweepScriptReturnsAnExpiredPositionsTokensAndRemovesTheDelegateesWeight() external {
     address _delegatee = makeAddr("expiringDelegatee");
     uint256 _amount = 500_000e18;
     uint256 _expiration = _safeExpiration();
@@ -24,14 +24,36 @@ abstract contract PostUpgradeFranchiserExpiryTest is FranchiserUpgradeTestBase {
     uint256 _timelockBalanceWhileDelegated = GTC_TOKEN.balanceOf(address(TIMELOCK));
 
     // Time reaches the expiration exactly — the boundary is inclusive, so the position is
-    // already sweepable. The sweep script broadcasts from Foundry's default sender, an arbitrary
-    // EOA with no special standing.
+    // already sweepable. The script broadcasts from Foundry's default sender, an EOA with no
+    // special standing; the fuzz test below carries the any-caller claim.
     vm.warp(_expiration);
     vm.roll(block.number + 1);
     RecallExpiredFranchisersTestConfig _sweepScript = _sweepExpiredPositions(_asArray(_delegatee));
 
     assertEq(_sweepScript.recalledCount(), 1);
     assertEq(_sweepScript.recalledDelegatees(0), _delegatee);
+    assertEq(GTC_TOKEN.balanceOf(address(TIMELOCK)), _timelockBalanceWhileDelegated + _amount);
+    assertEq(GTC_TOKEN.balanceOf(address(_franchiserFor(_delegatee))), 0);
+    assertEq(GTC_TOKEN.getCurrentVotes(_delegatee), 0);
+  }
+
+  /// forge-config: default.fuzz.runs = 25
+  /// forge-config: ci.fuzz.runs = 25
+  /// forge-config: lite.fuzz.runs = 5
+  function testFuzz_AnyAccountCanSweepAnExpiredPosition(address _caller) external {
+    address _delegatee = makeAddr("expiringDelegatee");
+    uint256 _amount = 500_000e18;
+    uint256 _expiration = _safeExpiration();
+    _delegateViaProposal(_delegatee, _amount, _expiration);
+    uint256 _timelockBalanceWhileDelegated = GTC_TOKEN.balanceOf(address(TIMELOCK));
+
+    // The factory's expired-recall path reads nothing from the caller and always returns the
+    // tokens to the position's owner, so sweeping is permissionless for any account.
+    vm.warp(_expiration);
+    vm.roll(block.number + 1);
+    vm.prank(_caller);
+    factory.recallExpired(address(TIMELOCK), _delegatee);
+
     assertEq(GTC_TOKEN.balanceOf(address(TIMELOCK)), _timelockBalanceWhileDelegated + _amount);
     assertEq(GTC_TOKEN.balanceOf(address(_franchiserFor(_delegatee))), 0);
     assertEq(GTC_TOKEN.getCurrentVotes(_delegatee), 0);

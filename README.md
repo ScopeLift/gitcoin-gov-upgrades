@@ -171,9 +171,11 @@ forge script script/ProposeFranchiserDelegationMainnet.s.sol:ProposeFranchiserDe
 `script/ProposeFranchiserRecall.s.sol` and `script/ProposeFranchiserRecallMainnet.s.sol` unwind
 delegations **before** they expire — the DAO's lever if a delegatee goes inactive or rogue. The
 proposal carries one action, `factory.recallMany`, returning each position's tokens (including any
-the delegatee sub-delegated) to a recipient, ordinarily the Timelock. Like the delegation script,
-each recall edits and commits the mainnet configuration, and the script validates the positions
-exist before proposing. Expired positions don't need a proposal — see the next section.
+the delegatee sub-delegated) to a recipient, ordinarily the Timelock — any other recipient sends
+treasury funds elsewhere, so the dry run prints a prominent warning for each one. Like the
+delegation script, each recall edits and commits the mainnet configuration, and the script
+validates the positions exist before proposing. Expired positions don't need a proposal — see the
+next section.
 
 ```sh
 # Dry-run, then broadcast as the proposer:

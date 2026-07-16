@@ -206,7 +206,11 @@ abstract contract PostUpgradeProposalGuardianTest is GitcoinGovernorPostUpgradeT
     _jumpToProposalActive(_proposal.id);
     _delegatesCastVotes(_proposal.id, FOR);
     _jumpPastProposalDeadline(_proposal.id);
-    assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Succeeded);
+    _guardProposalState(
+      governor.state(_proposal.id),
+      IGovernor.ProposalState.Succeeded,
+      "after the electorate voted the guardian-assessed proposal through"
+    );
   }
 }
 

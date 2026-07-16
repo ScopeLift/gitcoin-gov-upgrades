@@ -55,7 +55,12 @@ abstract contract PostUpgradeQuorumBehaviorTest is GitcoinGovernorPostUpgradeTes
       string.concat("Set the quorum to ", vm.toString(_newQuorum))
     );
     _submitPassQueueAndExecuteProposal(_proposal);
-    assertEq(governor.quorum(block.number), _newQuorum);
+    if (governor.quorum(block.number) != _newQuorum) {
+      revert(
+        "Test scaffolding: the setQuorum proposal executed but the quorum did not change to the "
+        "requested value; the quorum-adjustment step this suite builds on is broken"
+      );
+    }
   }
 
   function test_ProposalMeetingOnlyTheOldQuorumIsDefeatedAfterTheQuorumIsRaised() external {

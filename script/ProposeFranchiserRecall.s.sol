@@ -11,8 +11,10 @@ import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
 /// @notice Abstract base that holds the mechanics of proposing Franchiser recalls: a proposal,
 /// submitted to the Governor that controls the DAO's Timelock, that unwinds one or more of the
 /// Timelock's Franchiser positions before they expire. The proposal carries one action:
-/// `factory.recallMany(delegatees, tos)`, which recalls each position's tokens — including any
-/// the delegatee has sub-delegated — to the corresponding recipient, ordinarily the Timelock.
+/// `factory.recallMany`, which recalls each position's tokens — including any the delegatee has
+/// sub-delegated — to the corresponding recipient, ordinarily the Timelock. Any other recipient
+/// is legal but sends treasury funds out of the treasury, so the script prints a prominent
+/// warning for each such recipient during the dry run.
 ///
 /// This is the DAO's early-unwind lever. Positions that have already expired do not need it:
 /// anyone can return those to the Timelock permissionlessly with `RecallExpiredFranchisers`.
@@ -25,21 +27,23 @@ abstract contract ProposeFranchiserRecall is Script {
     FranchiserExpiryFactory factory;
     address proposer;
     address[] delegatees;
-    address[] tos;
+    address[] tokenRecipients;
     string description;
   }
 
   uint256 public proposalId;
+  uint256 public offTreasuryRecipientCount;
   bool internal isLogging = true;
 
   function run() public virtual {
     ProposalParams memory _params = _getProposalParams();
-    _revertIfProposalParamsAreInvalid(_params);
+    _validateProposalParams(_params);
 
     (address[] memory _targets, uint256[] memory _values, bytes[] memory _calldatas) =
       _buildProposalActions(_params);
 
     _logProposalSummary(_params);
+    _warnIfTokenRecipientIsNotTheTimelock(_params);
 
     vm.startBroadcast(_params.proposer);
     // BROADCAST: submit the recall proposal to the Governor
@@ -66,7 +70,8 @@ abstract contract ProposeFranchiserRecall is Script {
     _calldatas = new bytes[](1);
 
     _targets[0] = address(_params.factory);
-    _calldatas[0] = abi.encodeCall(_params.factory.recallMany, (_params.delegatees, _params.tos));
+    _calldatas[0] =
+      abi.encodeCall(_params.factory.recallMany, (_params.delegatees, _params.tokenRecipients));
   }
 
   function _logProposalSummary(ProposalParams memory _params) internal view {
@@ -89,7 +94,7 @@ abstract contract ProposeFranchiserRecall is Script {
           "    ",
           vm.toString(_params.delegatees[_index]),
           " -> ",
-          vm.toString(_params.tos[_index]),
+          vm.toString(_params.tokenRecipients[_index]),
           " (franchiser ",
           vm.toString(address(_franchiser)),
           " holds ",
@@ -100,13 +105,41 @@ abstract contract ProposeFranchiserRecall is Script {
     }
   }
 
+  // Recalled tokens ordinarily return to the Timelock. Any other recipient is legal — the DAO
+  // can deliberately direct recalled funds elsewhere — but it sends treasury funds out of the
+  // treasury, so the dry run shouts about each one for the proposer to consciously confirm. The
+  // public counter lets tests pin the behavior despite logging being silenced.
+  function _warnIfTokenRecipientIsNotTheTimelock(ProposalParams memory _params) internal {
+    address _timelock = _params.governor.timelock();
+    for (uint256 _index = 0; _index < _params.tokenRecipients.length; _index += 1) {
+      if (_params.tokenRecipients[_index] == _timelock) {
+        continue;
+      }
+      offTreasuryRecipientCount += 1;
+      _log(unicode"⚠️⚠️⚠️  WARNING  ⚠️⚠️⚠️");
+      _log(
+        string.concat(
+          "The recipient for delegatee ",
+          vm.toString(_params.delegatees[_index]),
+          " is ",
+          vm.toString(_params.tokenRecipients[_index]),
+          ", which is NOT the Timelock (",
+          vm.toString(_timelock),
+          ")."
+        )
+      );
+      _log("The tokens recalled from this position will NOT return to the DAO treasury.");
+      _log("Proceed only if this proposal intends to send treasury funds to this address.");
+    }
+  }
+
   function _log(string memory _msg) internal view {
     if (isLogging) {
       console2.log(_msg);
     }
   }
 
-  function _revertIfProposalParamsAreInvalid(ProposalParams memory _params) internal view {
+  function _validateProposalParams(ProposalParams memory _params) internal view {
     if (address(_params.governor) == address(0)) {
       revert(
         "ProposeFranchiserRecall: governor is the zero address; "
@@ -137,13 +170,13 @@ abstract contract ProposeFranchiserRecall is Script {
         "populate the delegatees whose positions this proposal recalls"
       );
     }
-    if (_params.delegatees.length != _params.tos.length) {
+    if (_params.delegatees.length != _params.tokenRecipients.length) {
       revert(
         string.concat(
           "ProposeFranchiserRecall: ",
           vm.toString(_params.delegatees.length),
           " delegatees but ",
-          vm.toString(_params.tos.length),
+          vm.toString(_params.tokenRecipients.length),
           " recipients; every delegatee needs exactly one recipient"
         )
       );
@@ -172,7 +205,7 @@ abstract contract ProposeFranchiserRecall is Script {
           )
         );
       }
-      if (_params.tos[_index] == address(0)) {
+      if (_params.tokenRecipients[_index] == address(0)) {
         revert(
           string.concat(
             "ProposeFranchiserRecall: the recipient for delegatee ",

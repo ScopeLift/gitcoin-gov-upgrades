@@ -31,7 +31,7 @@ abstract contract RecallExpiredFranchisers is Script {
 
   function run() public virtual {
     RecallParams memory _params = _getRecallParams();
-    _revertIfRecallParamsAreInvalid(_params);
+    _validateRecallParams(_params);
 
     _log("Recalling expired Franchiser positions with:");
     _log(string.concat("  factory: ", vm.toString(address(_params.factory))));
@@ -60,7 +60,7 @@ abstract contract RecallExpiredFranchisers is Script {
     recalledCount = _delegatees.length;
     _log(string.concat("Recalled ", vm.toString(recalledCount), " expired position(s)"));
 
-    _revertIfRecallLeftTokensBehind(_params, _delegatees);
+    _validateNoTokensLeftBehind(_params, _delegatees);
   }
 
   function disableLogging() public {
@@ -131,7 +131,7 @@ abstract contract RecallExpiredFranchisers is Script {
     }
   }
 
-  function _revertIfRecallParamsAreInvalid(RecallParams memory _params) internal pure {
+  function _validateRecallParams(RecallParams memory _params) internal pure {
     if (address(_params.factory) == address(0)) {
       revert(
         "RecallExpiredFranchisers: factory is the zero address; "
@@ -174,7 +174,7 @@ abstract contract RecallExpiredFranchisers is Script {
     }
   }
 
-  function _revertIfRecallLeftTokensBehind(RecallParams memory _params, address[] memory _recalled)
+  function _validateNoTokensLeftBehind(RecallParams memory _params, address[] memory _recalled)
     internal
     view
   {
