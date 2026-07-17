@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.35;
 
-import {Script} from "forge-std/Script.sol";
-import {console2} from "forge-std/console2.sol";
 import {FranchiserExpiryFactory} from "franchiser-expiry/src/FranchiserExpiryFactory.sol";
 import {FranchiserLens} from "franchiser-expiry/src/FranchiserLens.sol";
 import {IVotingToken} from "franchiser-expiry/src/interfaces/IVotingToken.sol";
+import {LoggedScript} from "script/LoggedScript.sol";
 
 /// @notice Abstract base that holds the mechanics of deploying the Franchiser system: the
 /// `FranchiserExpiryFactory` (whose constructor also deploys the canonical `Franchiser`
 /// implementation it clones) and the read-only `FranchiserLens` for inspecting delegations.
 /// A concrete contract supplies the configuration for a specific deployment by implementing
 /// `_getDeploymentParams`.
-abstract contract DeployFranchiser is Script {
+abstract contract DeployFranchiser is LoggedScript {
   struct DeploymentParams {
     IVotingToken votingToken;
   }
 
   FranchiserExpiryFactory public factory;
   FranchiserLens public lens;
-  bool internal isLogging = true;
 
   function run() public virtual {
     DeploymentParams memory _params = _getDeploymentParams();
@@ -50,17 +48,7 @@ abstract contract DeployFranchiser is Script {
     _validateDeployment(_params);
   }
 
-  function disableLogging() public {
-    isLogging = false;
-  }
-
   function _getDeploymentParams() internal view virtual returns (DeploymentParams memory);
-
-  function _log(string memory _msg) internal view {
-    if (isLogging) {
-      console2.log(_msg);
-    }
-  }
 
   function _validateDeploymentParams(DeploymentParams memory _params) internal view {
     if (address(_params.votingToken) == address(0)) {

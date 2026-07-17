@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.35;
 
-import {Script} from "forge-std/Script.sol";
-import {console2} from "forge-std/console2.sol";
 import {ICompoundTimelock} from "@openzeppelin/contracts/vendor/compound/ICompoundTimelock.sol";
+import {LoggedScript} from "script/LoggedScript.sol";
 import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
 import {IComp} from "src/interfaces/IComp.sol";
 
 /// @notice Abstract base that holds the mechanics of deploying a `GitcoinGovernorWithGuardian`.
 /// A concrete contract supplies the configuration for a specific deployment by implementing
 /// `_getDeploymentParams`.
-abstract contract DeployGitcoinGovernorWithGuardian is Script {
+abstract contract DeployGitcoinGovernorWithGuardian is LoggedScript {
   struct DeploymentParams {
     string name;
     uint256 initialQuorum;
@@ -24,7 +23,6 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
   }
 
   GitcoinGovernorWithGuardian public governor;
-  bool internal isLogging = true;
 
   function run() public virtual {
     DeploymentParams memory _params = _getDeploymentParams();
@@ -66,17 +64,7 @@ abstract contract DeployGitcoinGovernorWithGuardian is Script {
     _validateDeployment(_params);
   }
 
-  function disableLogging() public {
-    isLogging = false;
-  }
-
   function _getDeploymentParams() internal view virtual returns (DeploymentParams memory);
-
-  function _log(string memory _msg) internal view {
-    if (isLogging) {
-      console2.log(_msg);
-    }
-  }
 
   function _validateDeploymentParams(DeploymentParams memory _params) internal pure {
     if (address(_params.token) == address(0)) {

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.35;
 
-import {Script} from "forge-std/Script.sol";
-import {console2} from "forge-std/console2.sol";
 import {Franchiser} from "franchiser-expiry/src/Franchiser.sol";
 import {FranchiserExpiryFactory} from "franchiser-expiry/src/FranchiserExpiryFactory.sol";
+import {LoggedScript} from "script/LoggedScript.sol";
 
 /// @notice Abstract base that holds the mechanics of sweeping expired Franchiser positions back
 /// to their owner with `factory.recallManyExpired`. Unlike the proposal scripts, this is not a
@@ -18,7 +17,7 @@ import {FranchiserExpiryFactory} from "franchiser-expiry/src/FranchiserExpiryFac
 ///
 /// A concrete contract supplies the configuration for a specific sweep by implementing
 /// `_getRecallParams`.
-abstract contract RecallExpiredFranchisers is Script {
+abstract contract RecallExpiredFranchisers is LoggedScript {
   struct RecallParams {
     FranchiserExpiryFactory factory;
     address owner;
@@ -27,7 +26,6 @@ abstract contract RecallExpiredFranchisers is Script {
 
   address[] public recalledDelegatees;
   uint256 public recalledCount;
-  bool internal isLogging = true;
 
   function run() public virtual {
     RecallParams memory _params = _getRecallParams();
@@ -61,10 +59,6 @@ abstract contract RecallExpiredFranchisers is Script {
     _log(string.concat("Recalled ", vm.toString(recalledCount), " expired position(s)"));
 
     _validateNoTokensLeftBehind(_params, _delegatees);
-  }
-
-  function disableLogging() public {
-    isLogging = false;
   }
 
   function _getRecallParams() internal view virtual returns (RecallParams memory);
@@ -122,12 +116,6 @@ abstract contract RecallExpiredFranchisers is Script {
         _delegatees[_recallableIndex] = _params.delegatees[_index];
         _recallableIndex += 1;
       }
-    }
-  }
-
-  function _log(string memory _msg) internal view {
-    if (isLogging) {
-      console2.log(_msg);
     }
   }
 

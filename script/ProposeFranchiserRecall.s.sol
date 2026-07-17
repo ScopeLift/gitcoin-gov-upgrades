@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.35;
 
-import {Script} from "forge-std/Script.sol";
-import {console2} from "forge-std/console2.sol";
 import {Franchiser} from "franchiser-expiry/src/Franchiser.sol";
 import {FranchiserExpiryFactory} from "franchiser-expiry/src/FranchiserExpiryFactory.sol";
 import {IVotingToken} from "franchiser-expiry/src/interfaces/IVotingToken.sol";
+import {ProposeFranchiserBase} from "script/ProposeFranchiserBase.sol";
 import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
 
 /// @notice Abstract base that holds the mechanics of proposing Franchiser recalls: a proposal,
@@ -21,7 +20,7 @@ import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
 ///
 /// A concrete contract supplies the configuration for a specific proposal by implementing
 /// `_getProposalParams`.
-abstract contract ProposeFranchiserRecall is Script {
+abstract contract ProposeFranchiserRecall is ProposeFranchiserBase {
   struct ProposalParams {
     GitcoinGovernorWithGuardian governor;
     FranchiserExpiryFactory factory;
@@ -31,9 +30,7 @@ abstract contract ProposeFranchiserRecall is Script {
     string description;
   }
 
-  uint256 public proposalId;
   uint256 public offTreasuryRecipientCount;
-  bool internal isLogging = true;
 
   function run() public virtual {
     ProposalParams memory _params = _getProposalParams();
@@ -54,11 +51,11 @@ abstract contract ProposeFranchiserRecall is Script {
     _log(string.concat("Recall proposal submitted with id ", vm.toString(proposalId)));
   }
 
-  function disableLogging() public {
-    isLogging = false;
-  }
-
   function _getProposalParams() internal view virtual returns (ProposalParams memory);
+
+  function _scriptName() internal pure override returns (string memory) {
+    return "ProposeFranchiserRecall";
+  }
 
   function _buildProposalActions(ProposalParams memory _params)
     internal
@@ -133,43 +130,11 @@ abstract contract ProposeFranchiserRecall is Script {
     }
   }
 
-  function _log(string memory _msg) internal view {
-    if (isLogging) {
-      console2.log(_msg);
-    }
-  }
-
   function _validateProposalParams(ProposalParams memory _params) internal view {
-    if (address(_params.governor) == address(0)) {
-      revert(
-        "ProposeFranchiserRecall: governor is the zero address; "
-        "set it to the address of the Governor that controls the Timelock"
-      );
-    }
-    if (address(_params.factory) == address(0)) {
-      revert(
-        "ProposeFranchiserRecall: factory is the zero address; "
-        "set it to the address of the deployed FranchiserExpiryFactory"
-      );
-    }
-    if (_params.proposer == address(0)) {
-      revert(
-        "ProposeFranchiserRecall: proposer is the zero address; "
-        "set it to the delegate submitting the proposal"
-      );
-    }
-    if (bytes(_params.description).length == 0) {
-      revert(
-        "ProposeFranchiserRecall: description is empty; "
-        "set it to the text of the recall proposal"
-      );
-    }
-    if (_params.delegatees.length == 0) {
-      revert(
-        "ProposeFranchiserRecall: no delegatees; "
-        "populate the delegatees whose positions this proposal recalls"
-      );
-    }
+    _validateGovernanceWiring(
+      _params.governor, _params.factory, _params.proposer, _params.description
+    );
+    _validateDelegatees(_params.delegatees, "remove the duplicate entry");
     if (_params.delegatees.length != _params.tokenRecipients.length) {
       revert(
         string.concat(
@@ -181,30 +146,10 @@ abstract contract ProposeFranchiserRecall is Script {
         )
       );
     }
-    if (address(_params.factory.votingToken()) != address(_params.governor.token())) {
-      revert(
-        string.concat(
-          "ProposeFranchiserRecall: the factory's voting token is ",
-          vm.toString(address(_params.factory.votingToken())),
-          " but the governor's token is ",
-          vm.toString(address(_params.governor.token())),
-          "; the factory and the governor must be wired to the same token"
-        )
-      );
-    }
 
     address _timelock = _params.governor.timelock();
     for (uint256 _index = 0; _index < _params.delegatees.length; _index += 1) {
       address _delegatee = _params.delegatees[_index];
-      if (_delegatee == address(0)) {
-        revert(
-          string.concat(
-            "ProposeFranchiserRecall: the delegatee at index ",
-            vm.toString(_index),
-            " is the zero address"
-          )
-        );
-      }
       if (_params.tokenRecipients[_index] == address(0)) {
         revert(
           string.concat(
@@ -213,17 +158,6 @@ abstract contract ProposeFranchiserRecall is Script {
             " is the zero address; recalls are ordinarily sent back to the Timelock"
           )
         );
-      }
-      for (uint256 _priorIndex = 0; _priorIndex < _index; _priorIndex += 1) {
-        if (_params.delegatees[_priorIndex] == _delegatee) {
-          revert(
-            string.concat(
-              "ProposeFranchiserRecall: the delegatee ",
-              vm.toString(_delegatee),
-              " appears more than once; remove the duplicate entry"
-            )
-          );
-        }
       }
       if (address(_params.factory.getFranchiser(_timelock, _delegatee)).code.length == 0) {
         revert(
@@ -236,17 +170,6 @@ abstract contract ProposeFranchiserRecall is Script {
       }
     }
 
-    uint256 _proposerVotes = _params.governor.getVotes(_params.proposer, block.number - 1);
-    if (_proposerVotes < _params.governor.proposalThreshold()) {
-      revert(
-        string.concat(
-          "ProposeFranchiserRecall: the proposer's voting weight of ",
-          vm.toString(_proposerVotes),
-          " is below the governor's proposal threshold of ",
-          vm.toString(_params.governor.proposalThreshold()),
-          "; the proposer must hold or be delegated at least the threshold"
-        )
-      );
-    }
+    _validateProposerMeetsThreshold(_params.governor, _params.proposer);
   }
 }
