@@ -152,8 +152,8 @@ tops it up and overwrites the position's expiration — a zero amount adjusts th
 Before broadcasting, the script validates the round: the factory and Governor share the same
 token, the Timelock holds the total being delegated, the proposer clears the proposal threshold,
 no delegatee is duplicated or the zero address, and the expiration outlives the full proposal
-pipeline (voting delay and period, Timelock delay, and grace period), since funding reverts if the
-expiration has passed by execution.
+pipeline (voting delay and period plus the potential late-quorum extension, Timelock delay, and
+grace period), since funding reverts if the expiration has passed by execution.
 
 ```sh
 # Dry-run, then broadcast as the proposer:

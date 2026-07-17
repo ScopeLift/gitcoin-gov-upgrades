@@ -88,7 +88,8 @@ Foundation, consumed as a git submodule at `lib/franchiser-expiry` pinned to the
 branch of **ScopeLift's fork**: <https://github.com/ScopeLift/franchiser-expiry>. The fork updates
 the upstream toolchain to match this repo — OpenZeppelin pinned to the **same v5.6.1 commit** as
 `lib/openzeppelin-contracts`, solc 0.8.35, `via_ir` off — while leaving the contract logic
-untouched (the only source change is `Address.isContract` → `code.length`, an API OZ v5 removed).
+untouched: the source diff is mechanical (pragma bumps, import-path updates, and
+`Address.isContract` → `code.length`, an API OZ v5 removed).
 Remappings resolve the fork's `openzeppelin-contracts/` imports to this repo's OZ copy, and
 `solmate/` to the fork's nested submodule.
 
@@ -98,9 +99,10 @@ Governor, Timelock, or other governance contract. At runtime it calls only `dele
 deployed bytecode. The upstream `IVotingToken` interface (`IERC20 + IERC20Permit + IVotes`)
 declares functions GTC does not have (`getVotes`, `getPastVotes`, `DOMAIN_SEPARATOR`), but nothing
 in the contracts calls them, and the interface is **deliberately left as-is**: Solidity does not
-enforce interfaces at runtime, and keeping it means a zero source diff from the audited upstream
-(the fork carries a ChainSecurity audit; it covered the 0.8.15/`via_ir` build, so the logic-level
-findings carry over but the compiled bytecode differs). The `permitAndFund` entry points go unused
+enforce interfaces at runtime, and keeping it avoids diverging further from the audited upstream
+than the mechanical toolchain updates above (the fork carries a ChainSecurity audit; it covered
+the 0.8.15/`via_ir` build, so the logic-level findings carry over but the compiled bytecode
+differs). The `permitAndFund` entry points go unused
 here — the funder is the Timelock, which cannot produce signatures.
 
 **Operations model.** The factory has no owner or admin; its only parameter is the token. Each
@@ -112,14 +114,17 @@ passes, `recallExpired` is **permissionless** and always returns the tokens to t
 expired delegations unwind without a proposal. Sub-delegation is the delegatee's own prerogative
 (up to 8 sub-delegatees at the root, halving each nesting level).
 
-**Scripts** (each an abstract base plus a mainnet concrete, like the Governor's):
+**Scripts** (each an abstract base plus a mainnet concrete, like the Governor's; all script bases
+share `LoggedScript` for logging, and the two proposal bases share `ProposeFranchiserBase` for
+their common validation):
 
 - `DeployFranchiser[Mainnet]` — deploys the `FranchiserExpiryFactory` (its constructor deploys the
   canonical `Franchiser` implementation) and the read-only `FranchiserLens`.
 - `ProposeFranchiserDelegation[Mainnet]` — a delegation round; **reused** by editing and
   committing the round's delegatees/amounts/expiration, so git holds the delegation history.
   Validates wiring, treasury balance, proposer threshold, and that the expiration outlives the
-  proposal pipeline (voting delay + period, Timelock delay, grace period).
+  proposal pipeline (voting delay + period + potential late-quorum extension, Timelock delay,
+  grace period).
 - `ProposeFranchiserRecall[Mainnet]` — early unwind of live positions, recipients ordinarily the
   Timelock; a non-Timelock recipient is legal but triggers a prominent dry-run warning.
 - `RecallExpiredFranchisers[Mainnet]` — permissionless sweep of expired positions; its delegatee

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.35;
 
-import {Script} from "forge-std/Script.sol";
-import {console2} from "forge-std/console2.sol";
 import {ICompoundTimelock} from "@openzeppelin/contracts/vendor/compound/ICompoundTimelock.sol";
+import {LoggedScript} from "script/LoggedScript.sol";
 import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
 import {IGovernorBravo} from "src/interfaces/IGovernorBravo.sol";
 
@@ -17,7 +16,7 @@ import {IGovernorBravo} from "src/interfaces/IGovernorBravo.sol";
 ///
 /// A concrete contract supplies the configuration for a specific proposal by implementing
 /// `_getProposalParams`.
-abstract contract ProposeGovernorUpgrade is Script {
+abstract contract ProposeGovernorUpgrade is LoggedScript {
   struct ProposalParams {
     IGovernorBravo oldGovernor;
     GitcoinGovernorWithGuardian newGovernor;
@@ -26,7 +25,6 @@ abstract contract ProposeGovernorUpgrade is Script {
   }
 
   uint256 public proposalId;
-  bool internal isLogging = true;
 
   function run() public virtual {
     ProposalParams memory _params = _getProposalParams();
@@ -51,10 +49,6 @@ abstract contract ProposeGovernorUpgrade is Script {
     _log(string.concat("Upgrade proposal submitted with id ", vm.toString(proposalId)));
   }
 
-  function disableLogging() public {
-    isLogging = false;
-  }
-
   function _getProposalParams() internal view virtual returns (ProposalParams memory);
 
   function _buildProposalActions(ProposalParams memory _params)
@@ -72,12 +66,6 @@ abstract contract ProposeGovernorUpgrade is Script {
 
     _targets[1] = address(_params.newGovernor);
     _calldatas[1] = abi.encodeCall(_params.newGovernor.__acceptAdmin, ());
-  }
-
-  function _log(string memory _msg) internal view {
-    if (isLogging) {
-      console2.log(_msg);
-    }
   }
 
   function _validateProposalParams(ProposalParams memory _params) internal view {

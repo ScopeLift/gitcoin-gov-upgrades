@@ -61,10 +61,12 @@ abstract contract PostUpgradeFranchiserTestBase is GitcoinGovernorPostUpgradeTes
   //---------------------------------- Expiration helpers ----------------------------------//
 
   // The earliest expiration the delegation script accepts, mirroring its validation: the
-  // proposal must remain executable through the voting pipeline, the Timelock delay, and the
-  // grace period without the positions expiring.
+  // proposal must remain executable through the voting pipeline (including the late-quorum vote
+  // extension, in case quorum arrives at the deadline), the Timelock delay, and the grace period
+  // without the positions expiring.
   function _minimumExpiration() internal view returns (uint256) {
-    return block.timestamp + SECONDS_PER_BLOCK * (governor.votingDelay() + governor.votingPeriod())
+    return block.timestamp + SECONDS_PER_BLOCK
+      * (governor.votingDelay() + governor.votingPeriod() + governor.lateQuorumVoteExtension())
       + TIMELOCK.delay() + TIMELOCK.GRACE_PERIOD();
   }
 
