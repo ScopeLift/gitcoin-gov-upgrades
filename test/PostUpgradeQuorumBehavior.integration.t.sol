@@ -246,3 +246,13 @@ contract PostUpgradeQuorumBehaviorMainnetScript is PostUpgradeQuorumBehaviorTest
     return _deployGovernorWithMainnetScript();
   }
 }
+
+contract PostUpgradeQuorumBehaviorMainnetDeployed is PostUpgradeQuorumBehaviorTest {
+  function _setUpNetwork() internal override {
+    _createMainnetGovernorPostDeploymentFork();
+  }
+
+  function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
+    return _fetchDeployedGovernor();
+  }
+}

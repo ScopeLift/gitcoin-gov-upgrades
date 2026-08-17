@@ -223,3 +223,13 @@ contract PostUpgradeProposalGuardianMainnetScript is PostUpgradeProposalGuardian
     return _deployGovernorWithMainnetScript();
   }
 }
+
+contract PostUpgradeProposalGuardianMainnetDeployed is PostUpgradeProposalGuardianTest {
+  function _setUpNetwork() internal override {
+    _createMainnetGovernorPostDeploymentFork();
+  }
+
+  function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
+    return _fetchDeployedGovernor();
+  }
+}

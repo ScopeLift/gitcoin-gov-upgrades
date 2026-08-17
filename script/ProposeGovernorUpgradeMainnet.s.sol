@@ -10,11 +10,9 @@ import {ProposeGovernorUpgrade} from "script/ProposeGovernorUpgrade.s.sol";
 contract ProposeGovernorUpgradeMainnet is ProposeGovernorUpgrade {
   IGovernorBravo constant OLD_GOVERNOR = IGovernorBravo(0x9D4C63565D5618310271bF3F3c01b2954C1D1639);
 
-  // TODO: Set to the GitcoinGovernorWithGuardian address once it is deployed to mainnet. The zero
-  // address makes this script revert until then, so the proposal cannot be submitted before the
-  // new Governor exists.
+  // Gitcoin Governor Charlie, deployed to mainnet on August 17, 2026.
   GitcoinGovernorWithGuardian constant NEW_GOVERNOR =
-    GitcoinGovernorWithGuardian(payable(address(0)));
+    GitcoinGovernorWithGuardian(payable(0xef41CbD211076E8b1901e214Bf751d404cf06638));
 
   // TODO: Set to the delegate who will submit the proposal. They must hold or be delegated voting
   // weight of at least the old Governor's proposal threshold. The zero address makes this script
