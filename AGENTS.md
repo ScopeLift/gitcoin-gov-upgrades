@@ -242,21 +242,28 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
 ## Current status
 
 - `GitcoinGovernorWithGuardian` and its two custom extensions are written.
+- **Gitcoin Governor Charlie is deployed and verified on mainnet** at
+  `0xef41CbD211076E8b1901e214Bf751d404cf06638` (block `25_776_742`, transaction
+  `0xaa524bf06153ec3fde533f207d0f843fea26661774db6fe7113a67423b9caafb`). Its configuration is 1.5
+  million GTC quorum, 14,400-block voting delay, 40,320-block voting period, 150,000 GTC proposal
+  threshold, 7,200-block vote extension, and Proposal Guardian
+  `0x5743E35477363241300FcEdc2F5eB0195F300817`.
 - The Governor **deploy script** (`DeployGitcoinGovernorWithGuardian[Mainnet].s.sol`) and the
-  **upgrade proposal script** (`ProposeGovernorUpgrade[Mainnet].s.sol`) are in place. Both carry
-  `TODO`s to confirm with stakeholders before running (Governor name, vote extension, proposal
-  guardian; new Governor address, proposer, proposal text).
+  **upgrade proposal script** (`ProposeGovernorUpgrade[Mainnet].s.sol`) are in place. The proposal
+  concrete now points at the deployed Governor and still carries `TODO`s for the proposer and final
+  proposal text.
 - The **mainnet fork integration suite** (`test/*.integration.t.sol`) is in place: it deploys the
   new Governor with the real deploy script, submits the upgrade proposal with the real proposal
   script, and exercises the upgrade lifecycle, post-upgrade governance, quorum behavior
   (settable + late-quorum), and the Proposal Guardian. Shared helpers live in `test/helpers/`;
-  each suite has a `…MainnetScript` provenance concrete, with room for a `…MainnetDeployed`
-  concrete after the real deployment. Proposals are voted through by an electorate of **real
-  delegates** whose live weights are read from the fork in `setUp`. The suite pins `FORK_BLOCK`
-  in `test/helpers/GitcoinGovernorUpgradeTestBase.sol` — when bumping it, re-verify the
-  `PROPOSER` delegate still clears the proposal threshold and the electorate still clears quorum
-  (`setUp` asserts both weights loudly, and quorum-boundary tests assert their own weight
-  preconditions).
+  the four Governor suites have both `…MainnetScript` and `…MainnetDeployed` provenance concretes.
+  The former fork from before deployment and run the production deploy script; the latter fork from
+  the first block after deployment and bind to the production bytecode. Proposals are voted through
+  by an electorate of **real delegates** whose live weights are read from the fork in `setUp`. The
+  suite pins both `GOVERNOR_PRE_DEPLOYMENT_BLOCK` and `GOVERNOR_POST_DEPLOYMENT_BLOCK` in
+  `test/helpers/GitcoinGovernorUpgradeTestBase.sol`; when bumping either, re-verify the `PROPOSER`
+  delegate still clears the proposal threshold and the electorate still clears quorum (`setUp`
+  asserts both weights loudly, and quorum-boundary tests assert their own weight preconditions).
 - The Franchiser contracts are in place as the `lib/franchiser-expiry` submodule (ScopeLift fork,
   `repo-updates` branch), and all four **Franchiser script pairs** are written:
   `DeployFranchiser[Mainnet]`, `ProposeFranchiserDelegation[Mainnet]`,
@@ -273,8 +280,8 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
   proposals already snapshotted), expiry sweeps (permissionless, candidate filtering, weight
   persists until swept), and the scripts' validation reverts. Shared helpers live in
   `test/helpers/PostUpgradeFranchiserTestBase.sol`.
-- Up next: confirm the outstanding `TODO`s with Gitcoin stakeholders, deploy the new Governor,
-  and run the upgrade proposal (see [Deliverables](#deliverables)).
+- Up next: confirm the upgrade proposal's proposer and final text with Gitcoin stakeholders, then
+  run the upgrade proposal (see [Deliverables](#deliverables)).
 - CI runs `forge build`, `forge test`, and `scopelint check`. Coverage and Slither jobs are scaffolded
   but commented out in `.github/workflows/ci.yml`.
 

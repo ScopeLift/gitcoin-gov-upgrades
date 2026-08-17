@@ -299,3 +299,13 @@ contract PostUpgradeGovernanceMainnetScript is PostUpgradeGovernanceTest {
     return _deployGovernorWithMainnetScript();
   }
 }
+
+contract PostUpgradeGovernanceMainnetDeployed is PostUpgradeGovernanceTest {
+  function _setUpNetwork() internal override {
+    _createMainnetGovernorPostDeploymentFork();
+  }
+
+  function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
+    return _fetchDeployedGovernor();
+  }
+}

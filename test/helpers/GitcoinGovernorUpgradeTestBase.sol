@@ -23,19 +23,24 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   // The support value GovernorCountingFractional reserves for fractional votes.
   uint8 constant VOTE_TYPE_FRACTIONAL = 255;
 
-  uint256 constant FORK_BLOCK = 25_453_000;
+  uint256 constant GOVERNOR_PRE_DEPLOYMENT_BLOCK = 25_453_000;
+  uint256 constant GOVERNOR_POST_DEPLOYMENT_BLOCK = 25_776_743;
 
   IGovernorBravo constant OLD_GOVERNOR = IGovernorBravo(0x9D4C63565D5618310271bF3F3c01b2954C1D1639);
+  GitcoinGovernorWithGuardian constant DEPLOYED_GOVERNOR =
+    GitcoinGovernorWithGuardian(payable(0xef41CbD211076E8b1901e214Bf751d404cf06638));
   IGtc constant GTC_TOKEN = IGtc(0xDe30da39c46104798bB5aA3fe8B9e0e1F348163F);
   ICompoundTimelock constant TIMELOCK =
     ICompoundTimelock(payable(0x57a8865cfB1eCEf7253c27da6B4BC3dAEE5Be518));
+  address constant PROPOSAL_GUARDIAN = 0x5743E35477363241300FcEdc2F5eB0195F300817;
 
-  // kbw.eth — a real delegate whose voting weight (~485k GTC at FORK_BLOCK) clears the 150k
+  // kbw.eth — a real delegate whose voting weight (~485k GTC at the pre-deployment block) clears
+  // the 150k
   // proposal threshold on both governors (guarded in setUp).
   address constant PROPOSER = 0xc2E2B715d9e302947Ec7e312fd2384b5a1296099;
 
   // Real Gitcoin delegates who, together with the PROPOSER, form the test electorate. Approximate
-  // voting weights at FORK_BLOCK are noted; live weights are fetched in setUp.
+  // voting weights at the pre-deployment block are noted; live weights are fetched in setUp.
   address constant KEV = 0x00De4B13153673BCAE2616b67bf822500d325Fc3; // kev.eth, ~1.56M GTC
   address constant ANON_GNOSIS_SAFE = 0x93F80a67FdFDF9DaF1aee5276Db95c8761cc8561; // ~500k GTC
   // eventhorizoncommunity.eth, ~152k GTC
@@ -43,14 +48,14 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   address constant LEFTERIS = 0x2B888954421b424C5D3D9Ce9bB67c9bD47537d12; // lefteris.eth, ~100k GTC
   address constant CERV1 = 0x5a5D9aB7b1bD978F80909503EBb828879daCa9C3; // cerv1.eth, ~90k GTC
 
-  // Governance parameters of the active Governor at FORK_BLOCK, mirrored by the new Governor's
-  // mainnet deploy config.
-  uint256 constant QUORUM = 2_500_000e18;
-  uint48 constant VOTE_EXTENSION = 14_400;
+  // New governance parameters supplied by the mainnet deploy config.
+  uint256 constant QUORUM = 1_500_000e18;
+  uint48 constant VOTE_EXTENSION = 7200;
 
   // Floors on the Timelock's real treasury holdings, guarded in setUp: the send tests draw on
   // the Timelock's genuine balances rather than manufactured ones, and need enough behind them
-  // to stay representative. At FORK_BLOCK the Timelock holds ~12.5M GTC and ~139 ETH.
+  // to stay representative. At the pre-deployment block the Timelock holds ~12.5M GTC and ~139
+  // ETH.
   uint256 constant MIN_TIMELOCK_GTC_BALANCE = 1_000_000e18;
   uint256 constant MIN_TIMELOCK_ETH_BALANCE = 10 ether;
 
@@ -70,7 +75,7 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   uint256 upgradeProposalId;
 
   // The electorate: real delegates whose live voting weights are read from the fork in setUp.
-  // Combined they must clear the 2.5M quorum — asserted in setUp so that a fork-block bump that
+  // Combined they must clear the 1.5M quorum — asserted in setUp so that a fork-block bump that
   // erodes their weight fails loudly rather than silently changing what the tests exercise.
   // Weights are stored at GTC's native uint96 checkpoint width so that vote math over them can
   // widen into narrower types (e.g. the uint128 fields of a fractional vote) without unsafe
@@ -97,14 +102,14 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
 
     // Guards on the assumptions the suites make about the forked state. These revert rather
     // than assert: a failure here means the test setup no longer holds — not that a behavior
-    // under test regressed. Each message is aimed at a future developer bumping FORK_BLOCK.
+    // under test regressed. Each message is aimed at a future developer bumping a fork block.
     for (uint256 _index = 0; _index < delegates.length; _index += 1) {
       if (delegateWeights[delegates[_index]] == 0) {
         revert(
           string.concat(
             "Delegate ",
             vm.toString(delegates[_index]),
-            " has no voting weight at FORK_BLOCK; replace them in the electorate"
+            " has no voting weight at the pinned fork block; replace them in the electorate"
           )
         );
       }
@@ -133,12 +138,12 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     }
     if (GTC_TOKEN.balanceOf(address(TIMELOCK)) < MIN_TIMELOCK_GTC_BALANCE) {
       revert(
-        "The Timelock holds too little GTC for representative treasury tests; revisit FORK_BLOCK"
+        "The Timelock holds too little GTC for representative treasury tests; revisit the fork block"
       );
     }
     if (address(TIMELOCK).balance < MIN_TIMELOCK_ETH_BALANCE) {
       revert(
-        "The Timelock holds too little ETH for representative treasury tests; revisit FORK_BLOCK"
+        "The Timelock holds too little ETH for representative treasury tests; revisit the fork block"
       );
     }
   }
@@ -152,7 +157,11 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   // one-line delegations to these helpers.
 
   function _createMainnetFork() internal {
-    vm.createSelectFork("mainnet", FORK_BLOCK);
+    vm.createSelectFork("mainnet", GOVERNOR_PRE_DEPLOYMENT_BLOCK);
+  }
+
+  function _createMainnetGovernorPostDeploymentFork() internal {
+    vm.createSelectFork("mainnet", GOVERNOR_POST_DEPLOYMENT_BLOCK);
   }
 
   // Deploys the new Governor onto the fork by running the real mainnet deploy script, exactly as
@@ -165,10 +174,22 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     return _deployScript.governor();
   }
 
+  // Binds the system under test to the Governor deployed on mainnet, exercising its actual
+  // production bytecode rather than a fresh deployment of the same source.
+  function _fetchDeployedGovernor() internal view returns (GitcoinGovernorWithGuardian) {
+    if (address(DEPLOYED_GOVERNOR).code.length == 0) {
+      revert(
+        "The deployed Governor has no code at GOVERNOR_POST_DEPLOYMENT_BLOCK; "
+        "repair its address or pinned deployment block"
+      );
+    }
+    return DEPLOYED_GOVERNOR;
+  }
+
   //---------------------------------- Scaffolding guards ----------------------------------//
   // Guards on the state the step helpers expect as they drive proposals through their
   // lifecycle. Like the setUp guards, these revert rather than assert: a failure means a test
-  // scaffolding assumption broke — most often a FORK_BLOCK bump reshaping the electorate — not
+  // scaffolding assumption broke — most often a fork-block bump reshaping the electorate — not
   // that a behavior under test regressed. Assertions are reserved for the claims test bodies
   // make about the system under test.
 
@@ -188,7 +209,7 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
         _proposalStateName(_actual),
         " (",
         _context,
-        "); a scaffolding assumption broke; check the setUp guards and FORK_BLOCK before "
+        "); a scaffolding assumption broke; check the setUp guards and pinned fork block before "
         "suspecting the behavior under test"
       )
     );
