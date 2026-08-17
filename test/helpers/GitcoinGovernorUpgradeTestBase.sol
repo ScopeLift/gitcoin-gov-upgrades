@@ -29,6 +29,7 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   IGtc constant GTC_TOKEN = IGtc(0xDe30da39c46104798bB5aA3fe8B9e0e1F348163F);
   ICompoundTimelock constant TIMELOCK =
     ICompoundTimelock(payable(0x57a8865cfB1eCEf7253c27da6B4BC3dAEE5Be518));
+  address constant PROPOSAL_GUARDIAN = 0x5743E35477363241300FcEdc2F5eB0195F300817;
 
   // kbw.eth — a real delegate whose voting weight (~485k GTC at FORK_BLOCK) clears the 150k
   // proposal threshold on both governors (guarded in setUp).
@@ -43,10 +44,9 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   address constant LEFTERIS = 0x2B888954421b424C5D3D9Ce9bB67c9bD47537d12; // lefteris.eth, ~100k GTC
   address constant CERV1 = 0x5a5D9aB7b1bD978F80909503EBb828879daCa9C3; // cerv1.eth, ~90k GTC
 
-  // Governance parameters of the active Governor at FORK_BLOCK, mirrored by the new Governor's
-  // mainnet deploy config.
-  uint256 constant QUORUM = 2_500_000e18;
-  uint48 constant VOTE_EXTENSION = 14_400;
+  // New governance parameters supplied by the mainnet deploy config.
+  uint256 constant QUORUM = 1_500_000e18;
+  uint48 constant VOTE_EXTENSION = 7200;
 
   // Floors on the Timelock's real treasury holdings, guarded in setUp: the send tests draw on
   // the Timelock's genuine balances rather than manufactured ones, and need enough behind them
@@ -70,7 +70,7 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   uint256 upgradeProposalId;
 
   // The electorate: real delegates whose live voting weights are read from the fork in setUp.
-  // Combined they must clear the 2.5M quorum — asserted in setUp so that a fork-block bump that
+  // Combined they must clear the 1.5M quorum — asserted in setUp so that a fork-block bump that
   // erodes their weight fails loudly rather than silently changing what the tests exercise.
   // Weights are stored at GTC's native uint96 checkpoint width so that vote math over them can
   // widen into narrower types (e.g. the uint128 fields of a fractional vote) without unsafe

@@ -25,20 +25,16 @@ abstract contract PostUpgradeQuorumBehaviorTest is GitcoinGovernorPostUpgradeTes
         "rebalance the raised-quorum scenarios"
       );
     }
-    if (_votingWeightOf(KEV) < LOWERED_QUORUM) {
-      revert("kev.eth no longer clears the lowered quorum; rebalance the lowered-quorum scenario");
-    }
-    if (_votingWeightOf(KEV) >= QUORUM) {
-      revert(
-        "kev.eth now single-handedly clears the original quorum; "
-        "rebalance the lowered-quorum scenario"
-      );
-    }
     uint256 _blocWeight = _votingWeightOf(PROPOSER) + _votingWeightOf(ANON_GNOSIS_SAFE)
       + _votingWeightOf(EVENT_HORIZON);
     if (_blocWeight < LOWERED_QUORUM) {
       revert(
         "The sniping bloc no longer clears the lowered quorum; rebalance the late-quorum scenario"
+      );
+    }
+    if (_blocWeight >= QUORUM) {
+      revert(
+        "The sniping bloc now clears the original quorum; rebalance the lowered-quorum scenario"
       );
     }
     if (_votingWeightOf(KEV) <= _blocWeight) {
@@ -103,14 +99,16 @@ abstract contract PostUpgradeQuorumBehaviorTest is GitcoinGovernorPostUpgradeTes
   function test_ProposalMeetingOnlyTheLoweredQuorumSucceedsAndExecutes() external {
     _setQuorumViaProposal(LOWERED_QUORUM);
 
-    // kev.eth alone clears the lowered quorum but would have fallen short of the original one
-    // (guarded in setUp).
+    // The minority bloc clears the lowered quorum but falls short of the original one (guarded in
+    // setUp).
     address _receiver = makeAddr("receiver");
     ProposalDetails memory _proposal =
       _buildGtcSendProposal(_receiver, 1000e18, "Send GTC under the lowered quorum");
     _submitProposal(_proposal);
     _jumpToProposalActive(_proposal.id);
-    _castVote(KEV, _proposal.id, FOR);
+    _castVote(PROPOSER, _proposal.id, FOR);
+    _castVote(ANON_GNOSIS_SAFE, _proposal.id, FOR);
+    _castVote(EVENT_HORIZON, _proposal.id, FOR);
     _jumpPastProposalDeadline(_proposal.id);
 
     assertEq(governor.state(_proposal.id), IGovernor.ProposalState.Succeeded);
