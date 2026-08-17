@@ -243,9 +243,11 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
 
 - `GitcoinGovernorWithGuardian` and its two custom extensions are written.
 - The Governor **deploy script** (`DeployGitcoinGovernorWithGuardian[Mainnet].s.sol`) and the
-  **upgrade proposal script** (`ProposeGovernorUpgrade[Mainnet].s.sol`) are in place. Both carry
-  `TODO`s to confirm with stakeholders before running (Governor name, vote extension, proposal
-  guardian; new Governor address, proposer, proposal text).
+  **upgrade proposal script** (`ProposeGovernorUpgrade[Mainnet].s.sol`) are in place. The deploy
+  configuration is finalized: "Gitcoin Governor Charlie," 1.5 million GTC quorum, 14,400-block
+  voting delay, unchanged 40,320-block voting period and 150,000 GTC proposal threshold, 7,200-block
+  vote extension, and Proposal Guardian `0x5743E35477363241300FcEdc2F5eB0195F300817`. The proposal
+  script still carries `TODO`s for the new Governor address, proposer, and proposal text.
 - The **mainnet fork integration suite** (`test/*.integration.t.sol`) is in place: it deploys the
   new Governor with the real deploy script, submits the upgrade proposal with the real proposal
   script, and exercises the upgrade lifecycle, post-upgrade governance, quorum behavior

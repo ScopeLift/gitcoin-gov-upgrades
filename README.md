@@ -57,10 +57,11 @@ scopelint check   # verify formatting and conventions (also run in CI)
 
 `script/DeployGitcoinGovernorWithGuardian.s.sol` holds the reusable deployment mechanics, and
 `script/DeployGitcoinGovernorWithGuardianMainnet.s.sol` supplies the mainnet configuration: the GTC
-token and Compound Timelock addresses (fixed since 2021), plus governance parameters that mirror the
-active "GTC Governor Bravo" so the upgrade preserves current behavior. The new late-quorum vote
-extension, the initial proposal guardian, and the Governor name carry `TODO`s to confirm with
-stakeholders before deploying.
+token and Compound Timelock addresses (fixed since 2021), plus the finalized governance parameters.
+The upgraded Governor is named "Gitcoin Governor Charlie," uses a 1.5 million GTC quorum, a 14,400-
+block voting delay (approximately 48 hours), the existing 40,320-block voting period and 150,000 GTC
+proposal threshold, and a 7,200-block late-quorum voting window (approximately 24 hours). Proposal
+Guardian authority is initially assigned to `0x5743E35477363241300FcEdc2F5eB0195F300817`.
 
 Dry-run first to simulate the deployment and print the transaction it would send, and review that
 before broadcasting:

@@ -10,18 +10,16 @@ import {GitcoinGovernorUpgradeTestBase} from "test/helpers/GitcoinGovernorUpgrad
 // through passing, failing, and post-upgrade outcomes for control of the Timelock.
 abstract contract GovernorUpgradeProposalTest is GitcoinGovernorUpgradeTestBase {
   function test_DeploysTheNewGovernorWithTheMainnetConfiguration() external view {
-    assertEq(governor.name(), "GTC Governor Bravo");
+    assertEq(governor.name(), "Gitcoin Governor Charlie");
     assertEq(address(governor.token()), address(GTC_TOKEN));
     assertEq(governor.timelock(), address(TIMELOCK));
-    // These values mirror the active Governor, read from mainnet when the tests were written.
-    assertEq(governor.votingDelay(), 13_140);
+    assertEq(governor.votingDelay(), 14_400);
     assertEq(governor.votingPeriod(), 40_320);
+    // The proposal threshold and voting period remain unchanged from the active Governor.
     assertEq(governor.proposalThreshold(), 150_000e18);
     assertEq(governor.quorum(block.number), QUORUM);
     assertEq(governor.lateQuorumVoteExtension(), VOTE_EXTENSION);
-    // The placeholder guardian from the mainnet deploy config; update this assertion when the
-    // security-council guardian address is confirmed.
-    assertEq(governor.proposalGuardian(), address(TIMELOCK));
+    assertEq(governor.proposalGuardian(), PROPOSAL_GUARDIAN);
     assertEq(
       governor.COUNTING_MODE(), "support=bravo,fractional&quorum=for,abstain&params=fractional"
     );
