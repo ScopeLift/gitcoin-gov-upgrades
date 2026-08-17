@@ -9,7 +9,7 @@ import {GitcoinGovernorUpgradeTestBase} from "test/helpers/GitcoinGovernorUpgrad
 // upgrade proposal — submitted to the old Governor by the real proposal script — is walked
 // through passing, failing, and post-upgrade outcomes for control of the Timelock.
 abstract contract GovernorUpgradeProposalTest is GitcoinGovernorUpgradeTestBase {
-  function test_DeploysTheNewGovernorWithTheMainnetConfiguration() external view {
+  function test_NewGovernorHasTheMainnetConfiguration() external view {
     assertEq(governor.name(), "Gitcoin Governor Charlie");
     assertEq(address(governor.token()), address(GTC_TOKEN));
     assertEq(governor.timelock(), address(TIMELOCK));
@@ -153,5 +153,15 @@ contract GovernorUpgradeProposalMainnetScript is GovernorUpgradeProposalTest {
 
   function _fetchOrDeploySystem() internal override returns (GitcoinGovernorWithGuardian) {
     return _deployGovernorWithMainnetScript();
+  }
+}
+
+contract GovernorUpgradeProposalMainnetDeployed is GovernorUpgradeProposalTest {
+  function _setUpNetwork() internal override {
+    _createMainnetGovernorPostDeploymentFork();
+  }
+
+  function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
+    return _fetchDeployedGovernor();
   }
 }

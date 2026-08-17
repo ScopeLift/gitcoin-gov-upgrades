@@ -84,7 +84,7 @@ abstract contract PostUpgradeFranchiserDelegationTest is PostUpgradeFranchiserTe
     uint256 _initialWeight = GTC_TOKEN.getCurrentVotes(LEFTERIS);
     if (_initialWeight == 0) {
       revert(
-        "Test scaffolding: lefteris.eth has no delegated weight at FORK_BLOCK; pick a delegate "
+        "Test scaffolding: lefteris.eth has no delegated weight at the pinned fork block; pick a delegate "
         "with existing weight for the stacking scenario"
       );
     }

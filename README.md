@@ -63,6 +63,15 @@ block voting delay (approximately 48 hours), the existing 40,320-block voting pe
 proposal threshold, and a 7,200-block late-quorum voting window (approximately 24 hours). Proposal
 Guardian authority is initially assigned to `0x5743E35477363241300FcEdc2F5eB0195F300817`.
 
+Gitcoin Governor Charlie was deployed and verified on Ethereum mainnet on August 17, 2026:
+
+| Item | Value |
+| --- | --- |
+| Governor | [`0xef41CbD211076E8b1901e214Bf751d404cf06638`](https://etherscan.io/address/0xef41CbD211076E8b1901e214Bf751d404cf06638#code) |
+| Deployment transaction | [`0xaa524bf06153ec3fde533f207d0f843fea26661774db6fe7113a67423b9caafb`](https://etherscan.io/tx/0xaa524bf06153ec3fde533f207d0f843fea26661774db6fe7113a67423b9caafb) |
+| Deployment block | `25,776,742` |
+| Deployer | `0xba41C0652c89dDa91041Fb6ad58576784c9f28F6` |
+
 Dry-run first to simulate the deployment and print the transaction it would send, and review that
 before broadcasting:
 
@@ -91,9 +100,8 @@ Governor as its pending admin (`setPendingAdmin`), and the new Governor claims t
 same Timelock, that the old Governor is the Timelock's current admin, and that the proposer's
 voting weight meets the proposal threshold.
 
-The new Governor's address, the proposer, and the final proposal text carry `TODO`s. The script
-reverts until the first two are set — the proposal cannot be submitted before the new Governor is
-deployed and a proposer is confirmed.
+The deployed Governor address is fixed in the concrete. The proposer and final proposal text still
+carry `TODO`s, and the script reverts until a proposer is confirmed.
 
 Dry-run first to simulate the proposal and review the transaction it would send:
 
@@ -212,11 +220,12 @@ forge script script/RecallExpiredFranchisersMainnet.s.sol:RecallExpiredFranchise
 
 ## Testing
 
-The integration tests (`test/*.integration.t.sol`) run against a fork of Ethereum mainnet pinned
-to a fixed block, and simulate the entire upgrade the way it will actually happen: the real deploy
-script deploys the new Governor onto the fork, the real proposal script submits the upgrade
-proposal to the currently active Governor, and delegates vote it through to execution — after
-which the suites exercise the upgraded Governor in place:
+The integration tests (`test/*.integration.t.sol`) run against forks of Ethereum mainnet pinned to
+fixed blocks. The `…MainnetScript` provenance forks from before the real deployment and runs the
+production deploy script. The `…MainnetDeployed` provenance forks from the first block after the
+deployment and binds to Gitcoin Governor Charlie's live mainnet bytecode. Both provenances then
+submit the upgrade proposal to the currently active Governor and vote it through to execution before
+exercising the upgraded Governor in place:
 
 - `GovernorUpgradeProposal` — the upgrade proposal's lifecycle on the active Governor: passing it
   hands the Timelock to the new Governor; defeating it leaves the current Governor in control.
@@ -246,10 +255,15 @@ the real deploy script and drive the operations scripts end-to-end:
   guard protecting live positions.
 
 Each suite is written against an abstract base that leaves *how the system comes into being* to a
-small concrete contract at the bottom of the file. Today each file has a `…MainnetScript` concrete
-that deploys via the real deploy scripts; once the new Governor and the Franchiser system are live
-on mainnet, `…MainnetDeployed` concretes pointing at the deployed addresses can rerun the same
-suites as a post-deployment acceptance check.
+small concrete contract at the bottom of the file. The four Governor suites have both
+`…MainnetScript` and `…MainnetDeployed` concretes. Run the deployed-bytecode acceptance suites with:
+
+```sh
+forge test --match-contract '.*MainnetDeployed'
+```
+
+The Franchiser suites currently retain their `…MainnetScript` provenance; deployed concretes will
+be added once the Franchiser system is live on mainnet.
 
 ## License
 
