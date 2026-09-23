@@ -228,7 +228,10 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
   is reserved for the claims a test makes about the system under test; checks on test assumptions
   or scaffolding (setUp fork state, helper lifecycle checkpoints, scenario preconditions) instead
   revert with a developer-aimed message naming the broken assumption, so a failure reads as
-  "repair the test setup," not "a behavior regressed."
+  "repair the test setup," not "a behavior regressed." Fuzz-run caps for the fork suites go on
+  each provenance concrete as contract-level `/// forge-config:` lines: forge silently ignores
+  inline config on test functions inherited from an abstract suite, so a function-level cap there
+  does nothing and the fuzz test falls back to the profile's run count (5,000 under `ci`).
 - **Keep docs current.** `README.md` is intentionally lightweight and reflects the project's
   in-progress status. As scripts, tests, and contracts mature, update the README in the **same change**
   that introduces them — document a script's usage when the script lands, and drop the "under
@@ -252,18 +255,37 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
   **upgrade proposal script** (`ProposeGovernorUpgrade[Mainnet].s.sol`) are in place. The proposal
   concrete now points at the deployed Governor and still carries `TODO`s for the proposer and final
   proposal text.
+- **The upgrade proposal is on-chain.** It was submitted to the old Governor directly by kev.eth,
+  not through the proposal script, in block `26_041_897` (transaction
+  `0xb589c7fcb916860feefeef54da017800787e48952fc739b6d1ab50b34ca77e89`), with id
+  `0xefb5ffee46ab14020294f926e242a2fa79f096de6577be73d69429207a464489`. Voting runs from block
+  `26_055_037` to `26_095_357`. Its two actions match the proposal script's exactly; its
+  description is the stakeholders' own text.
 - The **mainnet fork integration suite** (`test/*.integration.t.sol`) is in place: it deploys the
   new Governor with the real deploy script, submits the upgrade proposal with the real proposal
   script, and exercises the upgrade lifecycle, post-upgrade governance, quorum behavior
-  (settable + late-quorum), and the Proposal Guardian. Shared helpers live in `test/helpers/`;
-  the four Governor suites have both `…MainnetScript` and `…MainnetDeployed` provenance concretes.
-  The former fork from before deployment and run the production deploy script; the latter fork from
-  the first block after deployment and bind to the production bytecode. Proposals are voted through
-  by an electorate of **real delegates** whose live weights are read from the fork in `setUp`. The
-  suite pins both `GOVERNOR_PRE_DEPLOYMENT_BLOCK` and `GOVERNOR_POST_DEPLOYMENT_BLOCK` in
-  `test/helpers/GitcoinGovernorUpgradeTestBase.sol`; when bumping either, re-verify the `PROPOSER`
-  delegate still clears the proposal threshold and the electorate still clears quorum (`setUp`
-  asserts both weights loudly, and quorum-boundary tests assert their own weight preconditions).
+  (settable + late-quorum), and the Proposal Guardian. Shared helpers live in `test/helpers/`.
+  Three provenance concretes exist, chosen through the `_setUpNetwork`, `_fetchOrDeploySystem`,
+  and `_fetchOrSubmitUpgradeProposal` hooks:
+  - `…MainnetScript` forks from before deployment, runs the production deploy script, and submits
+    the upgrade proposal with the proposal script.
+  - `…MainnetDeployed` (the four Governor suites only) forks from the first block after
+    deployment, binds to the production bytecode, and submits the upgrade proposal with the
+    proposal script.
+  - `…MainnetProposed` forks from the first block after the upgrade proposal's submission, binds
+    to the production bytecode, and adopts the live proposal. Its id and description are read from
+    the old Governor's `ProposalCreated` event via `vm.eth_getLogs`. Its actions come from the
+    tests' independent `_upgradeProposalDetails` mirror, so the id matching proves the live
+    proposal carries exactly the expected actions.
+
+  Proposals are voted through by an electorate of **real delegates** whose live weights are read
+  from the fork in `setUp`. The suite pins `GOVERNOR_PRE_DEPLOYMENT_BLOCK`,
+  `GOVERNOR_POST_DEPLOYMENT_BLOCK`, and `UPGRADE_PROPOSAL_POST_SUBMISSION_BLOCK` (alongside
+  `UPGRADE_PROPOSAL_SUBMISSION_BLOCK` and `SUBMITTED_UPGRADE_PROPOSAL_ID`) in
+  `test/helpers/GitcoinGovernorUpgradeTestBase.sol`; when bumping a fork block, re-verify the
+  `PROPOSER` delegate still clears the proposal threshold and the electorate still clears quorum
+  (`setUp` asserts both weights loudly, and quorum-boundary tests assert their own weight
+  preconditions).
 - The Franchiser contracts are in place as the `lib/franchiser-expiry` submodule (ScopeLift fork,
   `repo-updates` branch), and all four **Franchiser script pairs** are written:
   `DeployFranchiser[Mainnet]`, `ProposeFranchiserDelegation[Mainnet]`,
@@ -271,17 +293,18 @@ secret). CI supplies it via the `MAINNET_RPC_URL` repository secret.
   dry-runs clean against a mainnet fork; the proposal and sweep concretes carry `TODO`s (factory
   and new-Governor addresses, proposer, per-round delegations) and revert until those are set.
 - The **Franchiser fork integration suites** (`test/PostUpgradeFranchiser*.integration.t.sol`)
-  are in place: each runs the full Governor upgrade in `setUp` (the production sequence), deploys
-  the Franchiser system with the real deploy script via a `_fetchOrDeployFranchiser` provenance
-  hook, and drives the operations scripts through constructor-injected test configs in
+  are in place, each with `…MainnetScript` and `…MainnetProposed` concretes. Each runs the full
+  Governor upgrade in `setUp` (the production sequence), deploys the Franchiser system with the
+  real deploy script via a `_fetchOrDeployFranchiser` provenance hook, and drives the operations
+  scripts through constructor-injected test configs in
   `test/helpers/`. Coverage spans delegation rounds (fresh/existing delegatees, top-ups and
   expiration overwrites, zero-amount adjustments, defeats), early recalls (including
   sub-delegation clawback and the in-flight-snapshot property — a recall cannot strip weight from
   proposals already snapshotted), expiry sweeps (permissionless, candidate filtering, weight
   persists until swept), and the scripts' validation reverts. Shared helpers live in
   `test/helpers/PostUpgradeFranchiserTestBase.sol`.
-- Up next: confirm the upgrade proposal's proposer and final text with Gitcoin stakeholders, then
-  run the upgrade proposal (see [Deliverables](#deliverables)).
+- Up next: the DAO votes on the upgrade proposal; once it executes, Franchiser adoption follows
+  (see [Deliverables](#deliverables)).
 - CI runs `forge build`, `forge test`, and `scopelint check`. Coverage and Slither jobs are scaffolded
   but commented out in `.github/workflows/ci.yml`.
 

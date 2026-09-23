@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.35;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {IGovernor} from "@openzeppelin/contracts/governance/IGovernor.sol";
 import {ICompoundTimelock} from "@openzeppelin/contracts/vendor/compound/ICompoundTimelock.sol";
 import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
@@ -13,8 +13,9 @@ import {IGtc} from "test/helpers/IGtc.sol";
 import {ProposeGovernorUpgradeTestConfig} from "test/helpers/ProposeGovernorUpgradeTestConfig.sol";
 
 // Shared base for the mainnet fork integration suites. Holds the provenance abstraction (how the
-// system under test comes into being), the real-delegate electorate, and step helpers for
-// walking proposals through their lifecycle on both the old and the new Governor.
+// system under test and its upgrade proposal come into being), the real-delegate electorate, and
+// step helpers for walking proposals through their lifecycle on both the old and the new
+// Governor.
 abstract contract GitcoinGovernorUpgradeTestBase is Test {
   // Vote support values shared by both governors' bravo-style counting.
   uint8 constant AGAINST = 0;
@@ -25,6 +26,10 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
 
   uint256 constant GOVERNOR_PRE_DEPLOYMENT_BLOCK = 25_453_000;
   uint256 constant GOVERNOR_POST_DEPLOYMENT_BLOCK = 25_776_743;
+  // The upgrade proposal was submitted to the old Governor on mainnet in transaction
+  // 0xb589c7fcb916860feefeef54da017800787e48952fc739b6d1ab50b34ca77e89.
+  uint256 constant UPGRADE_PROPOSAL_SUBMISSION_BLOCK = 26_041_897;
+  uint256 constant UPGRADE_PROPOSAL_POST_SUBMISSION_BLOCK = 26_041_898;
 
   IGovernorBravo constant OLD_GOVERNOR = IGovernorBravo(0x9D4C63565D5618310271bF3F3c01b2954C1D1639);
   GitcoinGovernorWithGuardian constant DEPLOYED_GOVERNOR =
@@ -33,6 +38,8 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   ICompoundTimelock constant TIMELOCK =
     ICompoundTimelock(payable(0x57a8865cfB1eCEf7253c27da6B4BC3dAEE5Be518));
   address constant PROPOSAL_GUARDIAN = 0x5743E35477363241300FcEdc2F5eB0195F300817;
+  uint256 constant SUBMITTED_UPGRADE_PROPOSAL_ID =
+    0xefb5ffee46ab14020294f926e242a2fa79f096de6577be73d69429207a464489;
 
   // kbw.eth — a real delegate whose voting weight (~485k GTC at the pre-deployment block) clears
   // the 150k
@@ -59,6 +66,8 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   uint256 constant MIN_TIMELOCK_GTC_BALANCE = 1_000_000e18;
   uint256 constant MIN_TIMELOCK_ETH_BALANCE = 10 ether;
 
+  // The description the proposal script submits under the provenances that submit the upgrade
+  // proposal themselves; the proposal already on mainnet carries its own.
   string constant UPGRADE_PROPOSAL_DESCRIPTION =
     "Upgrade the Gitcoin Governor to GitcoinGovernorWithGuardian";
 
@@ -72,7 +81,10 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
   }
 
   GitcoinGovernorWithGuardian governor;
+  // The upgrade proposal on the old Governor, set by _proposeUpgrade from the concrete's
+  // provenance. The description is tracked alongside the id because it is hashed into it.
   uint256 upgradeProposalId;
+  string upgradeProposalDescription;
 
   // The electorate: real delegates whose live voting weights are read from the fork in setUp.
   // Combined they must clear the 1.5M quorum — asserted in setUp so that a fork-block bump that
@@ -152,8 +164,13 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
 
   function _fetchOrDeploySystem() internal virtual returns (GitcoinGovernorWithGuardian);
 
+  // Produces the upgrade proposal on the old Governor and returns its id and description. Unlike
+  // the two hooks above, setUp does not call this one: tests reach it through _proposeUpgrade at
+  // the point in their flow where the upgrade is proposed.
+  function _fetchOrSubmitUpgradeProposal() internal virtual returns (uint256, string memory);
+
   //-------------------------- Provenance implementation helpers --------------------------//
-  // Provenance concretes at the bottom of each test file implement the two methods above with
+  // Provenance concretes at the bottom of each test file implement the hooks above with
   // one-line delegations to these helpers.
 
   function _createMainnetFork() internal {
@@ -162,6 +179,10 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
 
   function _createMainnetGovernorPostDeploymentFork() internal {
     vm.createSelectFork("mainnet", GOVERNOR_POST_DEPLOYMENT_BLOCK);
+  }
+
+  function _createMainnetUpgradeProposalPostSubmissionFork() internal {
+    vm.createSelectFork("mainnet", UPGRADE_PROPOSAL_POST_SUBMISSION_BLOCK);
   }
 
   // Deploys the new Governor onto the fork by running the real mainnet deploy script, exactly as
@@ -184,6 +205,56 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
       );
     }
     return DEPLOYED_GOVERNOR;
+  }
+
+  // Submits the upgrade proposal by running the proposal script, exactly as a delegate would.
+  function _submitUpgradeProposalWithScript() internal returns (uint256, string memory) {
+    ProposeGovernorUpgradeTestConfig _proposeScript = new ProposeGovernorUpgradeTestConfig(
+      OLD_GOVERNOR, governor, PROPOSER, UPGRADE_PROPOSAL_DESCRIPTION
+    );
+    _proposeScript.disableLogging();
+    _proposeScript.run();
+    return (_proposeScript.proposalId(), UPGRADE_PROPOSAL_DESCRIPTION);
+  }
+
+  // Binds to the upgrade proposal already submitted on mainnet, reading its id and description
+  // from the ProposalCreated event the old Governor emitted. The event's actions are left unread
+  // on purpose: the tests pair the live description with the actions the _upgradeProposalDetails
+  // mirror expects, so the ids matching proves the live proposal carries exactly those actions.
+  function _fetchSubmittedUpgradeProposal() internal view returns (uint256, string memory) {
+    // The old Governor emits ProposalCreated with the same signature as OZ v5's IGovernor.
+    bytes32[] memory _topics = new bytes32[](1);
+    _topics[0] = IGovernor.ProposalCreated.selector;
+    Vm.EthGetLogs[] memory _logs = vm.eth_getLogs(
+      UPGRADE_PROPOSAL_SUBMISSION_BLOCK,
+      UPGRADE_PROPOSAL_SUBMISSION_BLOCK,
+      address(OLD_GOVERNOR),
+      _topics
+    );
+    if (_logs.length != 1) {
+      revert(
+        string.concat(
+          "Expected one ProposalCreated event from the old Governor at "
+          "UPGRADE_PROPOSAL_SUBMISSION_BLOCK but found ",
+          vm.toString(_logs.length),
+          "; repair the pinned submission block"
+        )
+      );
+    }
+    (uint256 _proposalId,,,,,,,, string memory _description) = abi.decode(
+      _logs[0].data,
+      (uint256, address, address[], uint256[], string[], bytes[], uint256, uint256, string)
+    );
+    if (_proposalId != SUBMITTED_UPGRADE_PROPOSAL_ID) {
+      revert(
+        string.concat(
+          "The proposal created at UPGRADE_PROPOSAL_SUBMISSION_BLOCK has id ",
+          vm.toString(_proposalId),
+          " rather than SUBMITTED_UPGRADE_PROPOSAL_ID; repair the pinned block or id"
+        )
+      );
+    }
+    return (_proposalId, _description);
   }
 
   //---------------------------------- Scaffolding guards ----------------------------------//
@@ -315,9 +386,9 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     );
   }
 
-  // The two actions of the upgrade proposal, mirroring what the proposal script builds. The
-  // tests assert the mirror is faithful by recomputing the script-returned proposal id from
-  // these actions.
+  // The two actions of the upgrade proposal, mirroring what the proposal script builds, paired
+  // with the proposal's description. The tests assert the mirror is faithful by recomputing the
+  // upgrade proposal's id from these actions.
   function _upgradeProposalDetails() internal view returns (ProposalDetails memory _proposal) {
     _proposal.targets = new address[](2);
     _proposal.values = new uint256[](2);
@@ -326,24 +397,21 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     _proposal.calldatas[0] = abi.encodeCall(ICompoundTimelock.setPendingAdmin, (address(governor)));
     _proposal.targets[1] = address(governor);
     _proposal.calldatas[1] = abi.encodeCall(governor.__acceptAdmin, ());
-    _proposal.description = UPGRADE_PROPOSAL_DESCRIPTION;
+    _proposal.description = upgradeProposalDescription;
     _proposal.id = _hashProposal(_proposal);
   }
 
   //----------------------------- Upgrade proposal (old Governor) -----------------------------//
 
-  // Submits the upgrade proposal by running the proposal script, exactly as a delegate would.
-  function _submitUpgradeProposal() internal {
-    ProposeGovernorUpgradeTestConfig _proposeScript = new ProposeGovernorUpgradeTestConfig(
-      OLD_GOVERNOR, governor, PROPOSER, UPGRADE_PROPOSAL_DESCRIPTION
-    );
-    _proposeScript.disableLogging();
-    _proposeScript.run();
-    upgradeProposalId = _proposeScript.proposalId();
+  // Brings the upgrade proposal into being through the provenance hook (submitting it with the
+  // real proposal script, or binding to the one already on mainnet) and guards that it carries
+  // the actions the _upgradeProposalDetails mirror expects.
+  function _proposeUpgrade() internal {
+    (upgradeProposalId, upgradeProposalDescription) = _fetchOrSubmitUpgradeProposal();
     _guardProposalId(
       upgradeProposalId,
       _upgradeProposalDetails().id,
-      "the upgrade proposal script vs the _upgradeProposalDetails mirror"
+      "the upgrade proposal vs the _upgradeProposalDetails mirror"
     );
   }
 
@@ -397,10 +465,10 @@ abstract contract GitcoinGovernorUpgradeTestBase is Test {
     );
   }
 
-  // The full upgrade journey: submit via the proposal script, pass, queue, wait out the
-  // Timelock delay, execute, and confirm the new Governor now controls the Timelock.
+  // The full upgrade journey: propose, pass, queue, wait out the Timelock delay, execute, and
+  // confirm the new Governor now controls the Timelock.
   function _upgradeToNewGovernor() internal {
-    _submitUpgradeProposal();
+    _proposeUpgrade();
     _passUpgradeProposal();
     _queueUpgradeProposal();
     _jumpPastUpgradeProposalEta();
