@@ -47,6 +47,32 @@ contract PostUpgradeFranchiserDeployMainnetScript is PostUpgradeFranchiserDeploy
     return _deployGovernorWithMainnetScript();
   }
 
+  function _fetchOrSubmitUpgradeProposal() internal override returns (uint256, string memory) {
+    return _submitUpgradeProposalWithScript();
+  }
+
+  function _fetchOrDeployFranchiser()
+    internal
+    override
+    returns (FranchiserExpiryFactory, FranchiserLens)
+  {
+    return _deployFranchiserWithMainnetScript();
+  }
+}
+
+contract PostUpgradeFranchiserDeployMainnetProposed is PostUpgradeFranchiserDeployTest {
+  function _setUpNetwork() internal override {
+    _createMainnetUpgradeProposalPostSubmissionFork();
+  }
+
+  function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
+    return _fetchDeployedGovernor();
+  }
+
+  function _fetchOrSubmitUpgradeProposal() internal view override returns (uint256, string memory) {
+    return _fetchSubmittedUpgradeProposal();
+  }
+
   function _fetchOrDeployFranchiser()
     internal
     override

@@ -222,6 +222,10 @@ contract PostUpgradeProposalGuardianMainnetScript is PostUpgradeProposalGuardian
   function _fetchOrDeploySystem() internal override returns (GitcoinGovernorWithGuardian) {
     return _deployGovernorWithMainnetScript();
   }
+
+  function _fetchOrSubmitUpgradeProposal() internal override returns (uint256, string memory) {
+    return _submitUpgradeProposalWithScript();
+  }
 }
 
 contract PostUpgradeProposalGuardianMainnetDeployed is PostUpgradeProposalGuardianTest {
@@ -231,5 +235,23 @@ contract PostUpgradeProposalGuardianMainnetDeployed is PostUpgradeProposalGuardi
 
   function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
     return _fetchDeployedGovernor();
+  }
+
+  function _fetchOrSubmitUpgradeProposal() internal override returns (uint256, string memory) {
+    return _submitUpgradeProposalWithScript();
+  }
+}
+
+contract PostUpgradeProposalGuardianMainnetProposed is PostUpgradeProposalGuardianTest {
+  function _setUpNetwork() internal override {
+    _createMainnetUpgradeProposalPostSubmissionFork();
+  }
+
+  function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
+    return _fetchDeployedGovernor();
+  }
+
+  function _fetchOrSubmitUpgradeProposal() internal view override returns (uint256, string memory) {
+    return _fetchSubmittedUpgradeProposal();
   }
 }

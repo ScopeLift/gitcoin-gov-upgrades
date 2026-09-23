@@ -9,9 +9,8 @@ import {GitcoinGovernorPostUpgradeTestBase} from "test/helpers/GitcoinGovernorUp
 // and defeating proposals that move treasury assets held by the Timelock, updating the
 // Governor's own settings, fractional and by-signature voting, and Timelock expiry.
 abstract contract PostUpgradeGovernanceTest is GitcoinGovernorPostUpgradeTestBase {
-  /// forge-config: default.fuzz.runs = 25
-  /// forge-config: ci.fuzz.runs = 25
-  /// forge-config: lite.fuzz.runs = 5
+  // This suite's fuzz-run caps sit on the provenance concretes at the bottom of the file: forge
+  // ignores inline config on test functions inherited from an abstract suite.
   function testFuzz_PassedProposalSendsGtcHeldByTheTimelock(uint256 _amount) external {
     // The proposal draws on the GTC the Timelock genuinely holds at the fork block.
     uint256 _initialTimelockBalance = GTC_TOKEN.balanceOf(address(TIMELOCK));
@@ -26,9 +25,6 @@ abstract contract PostUpgradeGovernanceTest is GitcoinGovernorPostUpgradeTestBas
     assertEq(GTC_TOKEN.balanceOf(address(TIMELOCK)), _initialTimelockBalance - _amount);
   }
 
-  /// forge-config: default.fuzz.runs = 25
-  /// forge-config: ci.fuzz.runs = 25
-  /// forge-config: lite.fuzz.runs = 5
   function testFuzz_PassedProposalSendsEthHeldByTheTimelock(uint256 _amount) external {
     // The proposal draws on the ETH the Timelock genuinely holds at the fork block.
     uint256 _initialTimelockBalance = address(TIMELOCK).balance;
@@ -290,6 +286,9 @@ abstract contract PostUpgradeGovernanceTest is GitcoinGovernorPostUpgradeTestBas
   }
 }
 
+/// forge-config: default.fuzz.runs = 25
+/// forge-config: ci.fuzz.runs = 25
+/// forge-config: lite.fuzz.runs = 5
 contract PostUpgradeGovernanceMainnetScript is PostUpgradeGovernanceTest {
   function _setUpNetwork() internal override {
     _createMainnetFork();
@@ -298,8 +297,15 @@ contract PostUpgradeGovernanceMainnetScript is PostUpgradeGovernanceTest {
   function _fetchOrDeploySystem() internal override returns (GitcoinGovernorWithGuardian) {
     return _deployGovernorWithMainnetScript();
   }
+
+  function _fetchOrSubmitUpgradeProposal() internal override returns (uint256, string memory) {
+    return _submitUpgradeProposalWithScript();
+  }
 }
 
+/// forge-config: default.fuzz.runs = 25
+/// forge-config: ci.fuzz.runs = 25
+/// forge-config: lite.fuzz.runs = 5
 contract PostUpgradeGovernanceMainnetDeployed is PostUpgradeGovernanceTest {
   function _setUpNetwork() internal override {
     _createMainnetGovernorPostDeploymentFork();
@@ -307,5 +313,26 @@ contract PostUpgradeGovernanceMainnetDeployed is PostUpgradeGovernanceTest {
 
   function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
     return _fetchDeployedGovernor();
+  }
+
+  function _fetchOrSubmitUpgradeProposal() internal override returns (uint256, string memory) {
+    return _submitUpgradeProposalWithScript();
+  }
+}
+
+/// forge-config: default.fuzz.runs = 25
+/// forge-config: ci.fuzz.runs = 25
+/// forge-config: lite.fuzz.runs = 5
+contract PostUpgradeGovernanceMainnetProposed is PostUpgradeGovernanceTest {
+  function _setUpNetwork() internal override {
+    _createMainnetUpgradeProposalPostSubmissionFork();
+  }
+
+  function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
+    return _fetchDeployedGovernor();
+  }
+
+  function _fetchOrSubmitUpgradeProposal() internal view override returns (uint256, string memory) {
+    return _fetchSubmittedUpgradeProposal();
   }
 }

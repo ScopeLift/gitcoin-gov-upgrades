@@ -37,9 +37,8 @@ abstract contract PostUpgradeFranchiserExpiryTest is PostUpgradeFranchiserTestBa
     assertEq(GTC_TOKEN.getCurrentVotes(_delegatee), 0);
   }
 
-  /// forge-config: default.fuzz.runs = 25
-  /// forge-config: ci.fuzz.runs = 25
-  /// forge-config: lite.fuzz.runs = 5
+  // This suite's fuzz-run caps sit on the provenance concretes at the bottom of the file: forge
+  // ignores inline config on test functions inherited from an abstract suite.
   function testFuzz_AnyAccountCanSweepAnExpiredPosition(address _caller) external {
     address _delegatee = makeAddr("expiringDelegatee");
     uint256 _amount = 500_000e18;
@@ -136,6 +135,9 @@ abstract contract PostUpgradeFranchiserExpiryTest is PostUpgradeFranchiserTestBa
   }
 }
 
+/// forge-config: default.fuzz.runs = 25
+/// forge-config: ci.fuzz.runs = 25
+/// forge-config: lite.fuzz.runs = 5
 contract PostUpgradeFranchiserExpiryMainnetScript is PostUpgradeFranchiserExpiryTest {
   function _setUpNetwork() internal override {
     _createMainnetFork();
@@ -143,6 +145,35 @@ contract PostUpgradeFranchiserExpiryMainnetScript is PostUpgradeFranchiserExpiry
 
   function _fetchOrDeploySystem() internal override returns (GitcoinGovernorWithGuardian) {
     return _deployGovernorWithMainnetScript();
+  }
+
+  function _fetchOrSubmitUpgradeProposal() internal override returns (uint256, string memory) {
+    return _submitUpgradeProposalWithScript();
+  }
+
+  function _fetchOrDeployFranchiser()
+    internal
+    override
+    returns (FranchiserExpiryFactory, FranchiserLens)
+  {
+    return _deployFranchiserWithMainnetScript();
+  }
+}
+
+/// forge-config: default.fuzz.runs = 25
+/// forge-config: ci.fuzz.runs = 25
+/// forge-config: lite.fuzz.runs = 5
+contract PostUpgradeFranchiserExpiryMainnetProposed is PostUpgradeFranchiserExpiryTest {
+  function _setUpNetwork() internal override {
+    _createMainnetUpgradeProposalPostSubmissionFork();
+  }
+
+  function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
+    return _fetchDeployedGovernor();
+  }
+
+  function _fetchOrSubmitUpgradeProposal() internal view override returns (uint256, string memory) {
+    return _fetchSubmittedUpgradeProposal();
   }
 
   function _fetchOrDeployFranchiser()

@@ -5,9 +5,10 @@ import {IGovernor} from "@openzeppelin/contracts/governance/IGovernor.sol";
 import {GitcoinGovernorWithGuardian} from "src/GitcoinGovernorWithGuardian.sol";
 import {GitcoinGovernorUpgradeTestBase} from "test/helpers/GitcoinGovernorUpgradeTestBase.sol";
 
-// Exercises the upgrade itself: the new Governor is deployed by the real deploy script, and the
-// upgrade proposal — submitted to the old Governor by the real proposal script — is walked
-// through passing, failing, and post-upgrade outcomes for control of the Timelock.
+// Exercises the upgrade itself: the new Governor, deployed by the real deploy script or bound to
+// the live deployment, and the upgrade proposal, submitted to the old Governor by the real
+// proposal script or bound to the one live on mainnet, are walked through passing, failing, and
+// post-upgrade outcomes for control of the Timelock.
 abstract contract GovernorUpgradeProposalTest is GitcoinGovernorUpgradeTestBase {
   function test_NewGovernorHasTheMainnetConfiguration() external view {
     assertEq(governor.name(), "Gitcoin Governor Charlie");
@@ -40,11 +41,13 @@ abstract contract GovernorUpgradeProposalTest is GitcoinGovernorUpgradeTestBase 
     assertTrue(governor.proposalNeedsQueuing(type(uint256).max));
   }
 
-  function test_SubmitsTheUpgradeProposalWithTheExpectedActions() external {
-    _submitUpgradeProposal();
+  function test_UpgradeProposalCarriesTheExpectedActions() external {
+    // Calls the provenance hook directly rather than through _proposeUpgrade, whose scaffolding
+    // guard would preempt the assertion this test exists to make.
+    (upgradeProposalId, upgradeProposalDescription) = _fetchOrSubmitUpgradeProposal();
 
     // The id the old Governor assigned matches the id computed from the actions the proposal is
-    // expected to carry, proving the script proposed exactly the setPendingAdmin + __acceptAdmin
+    // expected to carry, proving the proposal holds exactly the setPendingAdmin + __acceptAdmin
     // pair targeting this deployment.
     assertEq(upgradeProposalId, _upgradeProposalDetails().id);
     assertEq(OLD_GOVERNOR.state(upgradeProposalId), IGovernor.ProposalState.Pending);
@@ -52,7 +55,7 @@ abstract contract GovernorUpgradeProposalTest is GitcoinGovernorUpgradeTestBase 
   }
 
   function test_PassedUpgradeProposalTransfersTimelockControlToTheNewGovernor() external {
-    _submitUpgradeProposal();
+    _proposeUpgrade();
 
     // The electorate passes the proposal.
     _passUpgradeProposal();
@@ -82,7 +85,7 @@ abstract contract GovernorUpgradeProposalTest is GitcoinGovernorUpgradeTestBase 
   }
 
   function test_DefeatedUpgradeProposalLeavesTheOldGovernorGoverning() external {
-    _submitUpgradeProposal();
+    _proposeUpgrade();
 
     // The electorate votes the upgrade down.
     _defeatUpgradeProposal();
@@ -154,6 +157,10 @@ contract GovernorUpgradeProposalMainnetScript is GovernorUpgradeProposalTest {
   function _fetchOrDeploySystem() internal override returns (GitcoinGovernorWithGuardian) {
     return _deployGovernorWithMainnetScript();
   }
+
+  function _fetchOrSubmitUpgradeProposal() internal override returns (uint256, string memory) {
+    return _submitUpgradeProposalWithScript();
+  }
 }
 
 contract GovernorUpgradeProposalMainnetDeployed is GovernorUpgradeProposalTest {
@@ -163,5 +170,23 @@ contract GovernorUpgradeProposalMainnetDeployed is GovernorUpgradeProposalTest {
 
   function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
     return _fetchDeployedGovernor();
+  }
+
+  function _fetchOrSubmitUpgradeProposal() internal override returns (uint256, string memory) {
+    return _submitUpgradeProposalWithScript();
+  }
+}
+
+contract GovernorUpgradeProposalMainnetProposed is GovernorUpgradeProposalTest {
+  function _setUpNetwork() internal override {
+    _createMainnetUpgradeProposalPostSubmissionFork();
+  }
+
+  function _fetchOrDeploySystem() internal view override returns (GitcoinGovernorWithGuardian) {
+    return _fetchDeployedGovernor();
+  }
+
+  function _fetchOrSubmitUpgradeProposal() internal view override returns (uint256, string memory) {
+    return _fetchSubmittedUpgradeProposal();
   }
 }

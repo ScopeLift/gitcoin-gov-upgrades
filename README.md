@@ -221,11 +221,19 @@ forge script script/RecallExpiredFranchisersMainnet.s.sol:RecallExpiredFranchise
 ## Testing
 
 The integration tests (`test/*.integration.t.sol`) run against forks of Ethereum mainnet pinned to
-fixed blocks. The `…MainnetScript` provenance forks from before the real deployment and runs the
-production deploy script. The `…MainnetDeployed` provenance forks from the first block after the
-deployment and binds to Gitcoin Governor Charlie's live mainnet bytecode. Both provenances then
-submit the upgrade proposal to the currently active Governor and vote it through to execution before
-exercising the upgraded Governor in place:
+fixed blocks, under three provenances:
+
+- `…MainnetScript` forks from before the real deployment, runs the production deploy script, and
+  submits the upgrade proposal with the proposal script.
+- `…MainnetDeployed` forks from the first block after the deployment, binds to Gitcoin Governor
+  Charlie's live mainnet bytecode, and submits the upgrade proposal with the proposal script.
+- `…MainnetProposed` forks from the first block after the upgrade proposal was submitted on-chain
+  (in block 26,041,897), binds to the live Governor, and adopts the live proposal. Its id and
+  description are read from the chain, while the actions it must carry come from the tests' own
+  independent copy, so this provenance verifies the exact proposal delegates are voting on.
+
+Each provenance then votes the upgrade proposal through to execution on the currently active
+Governor before exercising the upgraded Governor in place:
 
 - `GovernorUpgradeProposal` — the upgrade proposal's lifecycle on the active Governor: passing it
   hands the Timelock to the new Governor; defeating it leaves the current Governor in control.
@@ -254,16 +262,19 @@ the real deploy script and drive the operations scripts end-to-end:
   on-chain candidate filtering, the weight that persists until a sweep actually runs, and the
   guard protecting live positions.
 
-Each suite is written against an abstract base that leaves *how the system comes into being* to a
-small concrete contract at the bottom of the file. The four Governor suites have both
-`…MainnetScript` and `…MainnetDeployed` concretes. Run the deployed-bytecode acceptance suites with:
+Each suite is written against an abstract base that leaves *how the system and its upgrade
+proposal come into being* to a small concrete contract at the bottom of the file. Every suite has
+`…MainnetScript` and `…MainnetProposed` concretes, and the four Governor suites also have
+`…MainnetDeployed`. Run the deployed-bytecode acceptance suites, or the suites against the live
+upgrade proposal, with:
 
 ```sh
 forge test --match-contract '.*MainnetDeployed'
+forge test --match-contract '.*MainnetProposed'
 ```
 
-The Franchiser suites currently retain their `…MainnetScript` provenance; deployed concretes will
-be added once the Franchiser system is live on mainnet.
+The Franchiser suites deploy the Franchiser system with its deploy script under every provenance;
+deployed concretes will be added once the Franchiser system is live on mainnet.
 
 ## License
 
